@@ -246,46 +246,24 @@ const Config = () => {
     try {
       setSaving(true);
       
-      const testData = {
-        event_type: "test",
-        booking: {
-          id: "test-booking-id",
-          guest_name: "Cliente Teste",
-          guest_phone: "(11) 99999-9999",
-          booking_date: new Date().toISOString().split('T')[0],
-          start_time: "10:00",
-          end_time: "11:00",
-        },
-        agenda: {
-          title: agenda?.title || "Sua Agenda",
-        },
-        service: {
-          name: "Serviço Teste",
-          price: 50.00,
-          duration_minutes: 60,
-        }
-      };
-
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(testData),
+      const { data, error } = await supabase.functions.invoke('test-webhook', {
+        body: { webhook_url: webhookUrl }
       });
 
-      if (response.ok) {
+      if (error) throw error;
+
+      if (data.success) {
         toast({
-          title: "Webhook testado com sucesso!",
+          title: "✅ Webhook testado com sucesso!",
           description: "Verifique seu n8n para ver se recebeu os dados de teste.",
         });
       } else {
-        throw new Error(`Erro ${response.status}: ${response.statusText}`);
+        throw new Error(data.error || 'Erro desconhecido');
       }
     } catch (error: any) {
       toast({
-        title: "Erro ao testar webhook",
-        description: error.message,
+        title: "❌ Erro ao testar webhook",
+        description: error.message || "Verifique se a URL está correta e se o webhook está ativo no n8n.",
         variant: "destructive",
       });
     } finally {
