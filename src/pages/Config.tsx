@@ -537,9 +537,6 @@ const Config = () => {
               >
                 📲 Enviar Lembretes Agora
               </Button>
-              <p className="text-xs text-muted-foreground">
-                Envia lembretes para os próximos agendamentos confirmados via webhook n8n
-              </p>
             </div>
           </CardContent>
         </Card>
