@@ -8,6 +8,8 @@ export interface Agenda {
   user_id: string;
   created_at: string;
   updated_at: string;
+  lunch_break_start: string | null;
+  lunch_break_end: string | null;
 }
 
 export interface AgendaInsert {

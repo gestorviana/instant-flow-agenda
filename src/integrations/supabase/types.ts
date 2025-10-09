@@ -14,7 +14,171 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      agendas: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          lunch_break_end: string | null
+          lunch_break_start: string | null
+          slug: string
+          title: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          lunch_break_end?: string | null
+          lunch_break_start?: string | null
+          slug: string
+          title: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          lunch_break_end?: string | null
+          lunch_break_start?: string | null
+          slug?: string
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agendas_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      availability: {
+        Row: {
+          agenda_id: string
+          created_at: string | null
+          day_of_week: number
+          end_time: string
+          id: string
+          start_time: string
+        }
+        Insert: {
+          agenda_id: string
+          created_at?: string | null
+          day_of_week: number
+          end_time: string
+          id?: string
+          start_time: string
+        }
+        Update: {
+          agenda_id?: string
+          created_at?: string | null
+          day_of_week?: number
+          end_time?: string
+          id?: string
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "availability_agenda_id_fkey"
+            columns: ["agenda_id"]
+            isOneToOne: false
+            referencedRelation: "agendas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bookings: {
+        Row: {
+          agenda_id: string
+          booking_date: string
+          created_at: string | null
+          end_time: string
+          guest_email: string
+          guest_name: string
+          guest_phone: string | null
+          id: string
+          notes: string | null
+          start_time: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          agenda_id: string
+          booking_date: string
+          created_at?: string | null
+          end_time: string
+          guest_email: string
+          guest_name: string
+          guest_phone?: string | null
+          id?: string
+          notes?: string | null
+          start_time: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          agenda_id?: string
+          booking_date?: string
+          created_at?: string | null
+          end_time?: string
+          guest_email?: string
+          guest_name?: string
+          guest_phone?: string | null
+          id?: string
+          notes?: string | null
+          start_time?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_agenda_id_fkey"
+            columns: ["agenda_id"]
+            isOneToOne: false
+            referencedRelation: "agendas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string | null
+          full_name: string | null
+          id: string
+          phone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id: string
+          phone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
