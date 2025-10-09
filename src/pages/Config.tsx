@@ -432,11 +432,6 @@ const Config = () => {
               <Input value={user?.email || ""} disabled />
             </div>
 
-            <div className="space-y-2">
-              <Label>Telefone</Label>
-              <Input value={profile?.phone || ""} disabled />
-            </div>
-
             {agenda?.slug && (
               <div className="space-y-2">
                 <Label>Link Público</Label>
