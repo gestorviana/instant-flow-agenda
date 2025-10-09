@@ -29,7 +29,12 @@ export const AgendaCard = ({ agenda, onUpdate }: AgendaCardProps) => {
       </div>
       
       <div className="flex gap-2">
-        <Button variant="outline" size="sm" className="flex-1">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="flex-1"
+          onClick={() => navigate(`/agendas/${agenda.id}/config`)}
+        >
           <Settings className="mr-2 h-4 w-4" />
           Configurar
         </Button>
