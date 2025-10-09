@@ -50,7 +50,7 @@ const PublicBooking = () => {
     } else if (!selectedDate || availability.length === 0) {
       setAvailableTimes([]);
     }
-  }, [selectedDate, availability, agenda]);
+  }, [selectedDate, availability, agenda, selectedService]);
 
   const loadAgenda = async () => {
     try {
@@ -114,7 +114,7 @@ const PublicBooking = () => {
   };
 
   const calculateAvailableTimes = async () => {
-    if (!selectedDate || !agenda) {
+    if (!selectedDate || !agenda || !selectedService) {
       setAvailableTimes([]);
       return;
     }
@@ -143,7 +143,7 @@ const PublicBooking = () => {
       }
 
     const times: string[] = [];
-    const slotDuration = 60; // 60 minutos por slot
+    const slotDuration = selectedService.duration_minutes; // Duração baseada no serviço
 
     // Função auxiliar para verificar se um horário está bloqueado
     const isTimeBlocked = (timeStr: string) => {
@@ -374,7 +374,9 @@ const PublicBooking = () => {
               disabled={(date) => {
                 const dayOfWeek = date.getDay();
                 const hasAvailability = availability.some((a) => a.day_of_week === dayOfWeek);
-                return date < startOfDay(new Date()) || !hasAvailability;
+                const oneWeekFromNow = new Date();
+                oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
+                return date < startOfDay(new Date()) || date > oneWeekFromNow || !hasAvailability;
               }}
               locale={ptBR}
               className="rounded-xl border mx-auto"
