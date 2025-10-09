@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar as CalendarIcon, Clock, CheckCircle } from "lucide-react";
 import type { Agenda, Availability } from "@/types/database";
-import { format, addDays, startOfDay } from "date-fns";
+import { format, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const PublicBooking = () => {
@@ -199,148 +199,152 @@ const PublicBooking = () => {
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="pt-6 text-center">
-            <CheckCircle className="mx-auto h-16 w-16 text-green-500 mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Agendamento Confirmado!</h2>
-            <p className="text-muted-foreground mb-4">
+        <div className="max-w-md w-full text-center space-y-6">
+          <CheckCircle className="mx-auto h-20 w-20 text-green-500" />
+          <div>
+            <h2 className="text-3xl font-bold mb-2">Agendamento Confirmado!</h2>
+            <p className="text-muted-foreground">
               Enviamos uma confirmação para {formData.email}
             </p>
-            <div className="bg-muted p-4 rounded-lg text-left">
-              <p className="font-semibold">{agenda.title}</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                <CalendarIcon className="inline h-4 w-4 mr-1" />
-                {format(selectedDate!, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                <Clock className="inline h-4 w-4 mr-1" />
-                {selectedTime}
-              </p>
+          </div>
+          <div className="bg-card border rounded-2xl p-6 text-left space-y-3">
+            <p className="font-bold text-xl">{agenda.title}</p>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <CalendarIcon className="h-5 w-5" />
+              <span>{format(selectedDate!, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Clock className="h-5 w-5" />
+              <span className="text-2xl font-bold text-foreground">{selectedTime}</span>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background py-8 px-4">
-      <div className="max-w-4xl mx-auto">
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-3xl">{agenda.title}</CardTitle>
-            {agenda.description && (
-              <CardDescription className="text-base">{agenda.description}</CardDescription>
-            )}
-          </CardHeader>
-        </Card>
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="bg-card border-b">
+        <div className="max-w-2xl mx-auto px-4 py-6">
+          <h1 className="text-2xl font-bold mb-1">{agenda.title}</h1>
+          {agenda.description && (
+            <p className="text-sm text-muted-foreground">{agenda.description}</p>
+          )}
+        </div>
+      </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Selecione a Data</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={setSelectedDate}
-                disabled={(date) => {
-                  const dayOfWeek = date.getDay();
-                  const hasAvailability = availability.some((a) => a.day_of_week === dayOfWeek);
-                  return date < startOfDay(new Date()) || !hasAvailability;
-                }}
-                locale={ptBR}
-                className="rounded-md border"
-              />
-            </CardContent>
-          </Card>
+      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+        {/* Step 1: Selecionar Data */}
+        <div className="bg-card border rounded-2xl p-6">
+          <h2 className="text-lg font-bold mb-4">📅 Escolha a data</h2>
+          <Calendar
+            mode="single"
+            selected={selectedDate}
+            onSelect={setSelectedDate}
+            disabled={(date) => {
+              const dayOfWeek = date.getDay();
+              const hasAvailability = availability.some((a) => a.day_of_week === dayOfWeek);
+              return date < startOfDay(new Date()) || !hasAvailability;
+            }}
+            locale={ptBR}
+            className="rounded-xl border mx-auto"
+          />
+        </div>
 
-          <div className="space-y-6">
-            {selectedDate && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Horários Disponíveis</CardTitle>
-                  <CardDescription>
-                    {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {availableTimes.length === 0 ? (
-                    <p className="text-muted-foreground text-sm">
-                      Nenhum horário disponível para esta data
-                    </p>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-2">
-                      {availableTimes.map((time) => (
-                        <Button
-                          key={time}
-                          variant={selectedTime === time ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setSelectedTime(time)}
-                        >
-                          {time}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {selectedTime && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Seus Dados</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Nome completo *</Label>
-                      <Input
-                        id="name"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email *</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Telefone</Label>
-                      <Input
-                        id="phone"
-                        type="tel"
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="notes">Observações</Label>
-                      <Textarea
-                        id="notes"
-                        value={formData.notes}
-                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                        rows={3}
-                      />
-                    </div>
-                    <Button type="submit" className="w-full" disabled={submitting}>
-                      {submitting ? "Agendando..." : "Confirmar Agendamento"}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
+        {/* Step 2: Selecionar Horário */}
+        {selectedDate && (
+          <div className="bg-card border rounded-2xl p-6">
+            <h2 className="text-lg font-bold mb-2">⏰ Escolha o horário</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
+            </p>
+            {availableTimes.length === 0 ? (
+              <div className="text-center py-8">
+                <Clock className="mx-auto h-12 w-12 text-muted-foreground/50 mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  Nenhum horário disponível para esta data
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-3">
+                {availableTimes.map((time) => (
+                  <Button
+                    key={time}
+                    variant={selectedTime === time ? "default" : "outline"}
+                    size="lg"
+                    onClick={() => setSelectedTime(time)}
+                    className="h-14 text-lg font-semibold rounded-xl"
+                  >
+                    {time}
+                  </Button>
+                ))}
+              </div>
             )}
           </div>
-        </div>
+        )}
+
+        {/* Step 3: Formulário */}
+        {selectedTime && (
+          <div className="bg-card border rounded-2xl p-6">
+            <h2 className="text-lg font-bold mb-4">✏️ Seus dados</h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome completo</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                  className="h-12 rounded-xl text-base"
+                  placeholder="Seu nome"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                  className="h-12 rounded-xl text-base"
+                  placeholder="seu@email.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">WhatsApp</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="h-12 rounded-xl text-base"
+                  placeholder="(00) 00000-0000"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="notes">Observações (opcional)</Label>
+                <Textarea
+                  id="notes"
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={3}
+                  className="rounded-xl resize-none"
+                  placeholder="Alguma informação adicional?"
+                />
+              </div>
+              <Button 
+                type="submit" 
+                className="w-full h-14 text-lg font-bold rounded-xl" 
+                disabled={submitting}
+              >
+                {submitting ? "Agendando..." : "✅ Confirmar Agendamento"}
+              </Button>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );

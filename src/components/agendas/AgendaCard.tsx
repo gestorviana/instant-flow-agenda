@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Settings, ExternalLink, Edit, Trash2, MoreVertical } from "lucide-react";
+import { Settings, Edit, Trash2, MoreVertical } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,10 +40,10 @@ export const AgendaCard = ({ agenda, onUpdate }: AgendaCardProps) => {
         onOpenChange={setDeleteOpen}
         onSuccess={onUpdate}
       />
-      <div className="p-6 border rounded-lg hover:shadow-md transition-shadow">
+      <div className="p-6 border rounded-2xl hover:border-primary/50 transition-all bg-card">
         <div className="flex justify-between items-start mb-4">
           <div className="flex-1">
-            <h3 className="text-xl font-semibold mb-1">{agenda.title}</h3>
+            <h3 className="text-xl font-bold mb-1">{agenda.title}</h3>
             {agenda.description && (
               <p className="text-sm text-muted-foreground line-clamp-2">
                 {agenda.description}
@@ -51,12 +51,15 @@ export const AgendaCard = ({ agenda, onUpdate }: AgendaCardProps) => {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant={agenda.is_active ? "default" : "secondary"}>
+            <Badge 
+              variant={agenda.is_active ? "default" : "secondary"}
+              className="rounded-full"
+            >
               {agenda.is_active ? "Ativa" : "Inativa"}
             </Badge>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" className="h-8 w-8">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -78,33 +81,14 @@ export const AgendaCard = ({ agenda, onUpdate }: AgendaCardProps) => {
           </div>
         </div>
       
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex-1"
-            onClick={() => navigate(`/agendas/${agenda.id}/config`)}
-          >
-            <Settings className="mr-2 h-4 w-4" />
-            Configurar
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex-1"
-            onClick={() => {
-              const url = `${window.location.origin}/agendar/${agenda.slug}`;
-              navigator.clipboard.writeText(url);
-              toast({
-                title: "Link copiado!",
-                description: "O link foi copiado para a área de transferência.",
-              });
-            }}
-          >
-            <ExternalLink className="mr-2 h-4 w-4" />
-            Copiar link
-          </Button>
-        </div>
+        <Button 
+          size="lg"
+          className="w-full rounded-xl"
+          onClick={() => navigate(`/agendas/${agenda.id}/config`)}
+        >
+          <Settings className="mr-2 h-5 w-5" />
+          Configurar Agenda
+        </Button>
       </div>
     </>
   );
