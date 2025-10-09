@@ -74,7 +74,7 @@ const Dashboard = () => {
               <p className="text-sm text-muted-foreground mb-4">
                 Crie e gerencie suas agendas personalizadas
               </p>
-              <Button>Ver agendas</Button>
+              <Button onClick={() => navigate("/agendas")}>Ver agendas</Button>
             </div>
             <div className="p-6 border rounded-lg">
               <h3 className="text-xl font-semibold mb-2">Agendamentos</h3>
