@@ -101,6 +101,7 @@ export type Database = {
           agenda_id: string
           booking_date: string
           created_at: string | null
+          custom_reminder: string | null
           end_time: string
           guest_email: string
           guest_name: string
@@ -116,6 +117,7 @@ export type Database = {
           agenda_id: string
           booking_date: string
           created_at?: string | null
+          custom_reminder?: string | null
           end_time: string
           guest_email: string
           guest_name: string
@@ -131,6 +133,7 @@ export type Database = {
           agenda_id?: string
           booking_date?: string
           created_at?: string | null
+          custom_reminder?: string | null
           end_time?: string
           guest_email?: string
           guest_name?: string
@@ -158,6 +161,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      clients: {
+        Row: {
+          created_at: string
+          first_booking_date: string
+          id: string
+          last_booking_date: string
+          name: string
+          phone: string
+          total_bookings: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          first_booking_date?: string
+          id?: string
+          last_booking_date?: string
+          name: string
+          phone: string
+          total_bookings?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          first_booking_date?: string
+          id?: string
+          last_booking_date?: string
+          name?: string
+          phone?: string
+          total_bookings?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       expenses: {
         Row: {

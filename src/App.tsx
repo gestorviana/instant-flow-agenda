@@ -14,6 +14,7 @@ import Bookings from "./pages/Bookings";
 import Services from "./pages/Services";
 import Financial from "./pages/Financial";
 import Config from "./pages/Config";
+import Clients from "./pages/Clients";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,7 @@ const App = () => (
           <Route path="/bookings" element={<Bookings />} />
           <Route path="/servicos" element={<Services />} />
           <Route path="/financeiro" element={<Financial />} />
+          <Route path="/clientes" element={<Clients />} />
           <Route path="/config" element={<Config />} />
           <Route path="/agendar/:slug" element={<PublicBooking />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

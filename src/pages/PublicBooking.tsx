@@ -26,8 +26,8 @@ const PublicBooking = () => {
   const [success, setSuccess] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
-    email: "",
     phone: "",
+    reminder: "",
   });
   const { toast } = useToast();
 
@@ -195,9 +195,9 @@ const PublicBooking = () => {
           start_time: selectedTime,
           end_time: endTime,
           guest_name: formData.name,
-          guest_email: formData.email,
           guest_phone: formData.phone,
           service_id: selectedService.id,
+          custom_reminder: formData.reminder,
           status: "pending",
         })
         .select()
@@ -262,7 +262,7 @@ const PublicBooking = () => {
           <div>
             <h2 className="text-3xl font-bold mb-2">Agendamento Confirmado!</h2>
             <p className="text-muted-foreground">
-              Enviamos uma confirmação para {formData.email}
+              Entraremos em contato via WhatsApp
             </p>
           </div>
           <div className="bg-card border rounded-2xl p-6 text-left space-y-3">
@@ -288,29 +288,43 @@ const PublicBooking = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="bg-card border-b">
-        <div className="max-w-2xl mx-auto px-4 py-6">
-          <h1 className="text-2xl font-bold mb-1">{agenda.title}</h1>
-          {agenda.description && (
-            <p className="text-sm text-muted-foreground">{agenda.description}</p>
-          )}
+      <div className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-background to-accent/10 border-b">
+        <div className="absolute inset-0 bg-grid-white/5 [mask-image:linear-gradient(0deg,white,transparent)]" />
+        <div className="max-w-2xl mx-auto px-4 py-12 relative">
+          <div className="text-center space-y-4 animate-fade-in">
+            <div className="inline-block">
+              <div className="flex items-center gap-2 text-primary mb-2">
+                <div className="h-px w-8 bg-primary/50" />
+                <span className="text-sm font-medium tracking-wider uppercase">Agendamento Online</span>
+                <div className="h-px w-8 bg-primary/50" />
+              </div>
+            </div>
+            <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+              Reserve seu Horário
+            </h1>
+            {agenda.description && (
+              <p className="text-lg text-muted-foreground max-w-md mx-auto">{agenda.description}</p>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         {/* Step 1: Selecionar Serviço */}
         {services.length > 0 && (
-          <div className="bg-card border rounded-2xl p-6">
-            <h2 className="text-lg font-bold mb-4">💼 Escolha o serviço</h2>
+          <div className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow">
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <span className="text-2xl">💼</span> Escolha o serviço
+            </h2>
             <div className="grid gap-3">
               {services.map((service) => (
                 <button
                   key={service.id}
                   onClick={() => setSelectedService(service)}
-                  className={`text-left p-4 rounded-xl border-2 transition-all ${
+                  className={`text-left p-4 rounded-xl border-2 transition-all hover:scale-[1.02] ${
                     selectedService?.id === service.id
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/50"
+                      ? "border-primary bg-primary/10 shadow-lg"
+                      : "border-border hover:border-primary/50 hover:shadow-md"
                   }`}
                 >
                   <div className="flex justify-between items-start">
@@ -333,8 +347,10 @@ const PublicBooking = () => {
 
         {/* Step 2: Selecionar Data */}
         {selectedService && (
-          <div className="bg-card border rounded-2xl p-6">
-            <h2 className="text-lg font-bold mb-4">📅 Escolha a data</h2>
+          <div className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow animate-scale-in">
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <span className="text-2xl">📅</span> Escolha a data
+            </h2>
             <Calendar
               mode="single"
               selected={selectedDate}
@@ -352,8 +368,10 @@ const PublicBooking = () => {
 
         {/* Step 3: Selecionar Horário */}
         {selectedDate && selectedService && (
-          <div className="bg-card border rounded-2xl p-6">
-            <h2 className="text-lg font-bold mb-2">⏰ Escolha o horário</h2>
+          <div className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow animate-scale-in">
+            <h2 className="text-lg font-bold mb-2 flex items-center gap-2">
+              <span className="text-2xl">⏰</span> Escolha o horário
+            </h2>
             <p className="text-sm text-muted-foreground mb-4">
               {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
             </p>
@@ -384,11 +402,13 @@ const PublicBooking = () => {
 
         {/* Step 4: Formulário */}
         {selectedTime && selectedService && (
-          <div className="bg-card border rounded-2xl p-6">
-            <h2 className="text-lg font-bold mb-4">✏️ Seus dados</h2>
+          <div className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow animate-scale-in">
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <span className="text-2xl">✏️</span> Seus dados
+            </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Nome completo</Label>
+                <Label htmlFor="name">Nome</Label>
                 <Input
                   id="name"
                   value={formData.name}
@@ -399,19 +419,7 @@ const PublicBooking = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                  className="h-12 rounded-xl text-base"
-                  placeholder="seu@email.com"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">WhatsApp *</Label>
+                <Label htmlFor="phone">WhatsApp</Label>
                 <Input
                   id="phone"
                   type="tel"
@@ -422,9 +430,19 @@ const PublicBooking = () => {
                   placeholder="(00) 00000-0000"
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="reminder">Lembrete personalizado (opcional)</Label>
+                <Input
+                  id="reminder"
+                  value={formData.reminder}
+                  onChange={(e) => setFormData({ ...formData, reminder: e.target.value })}
+                  className="h-12 rounded-xl text-base"
+                  placeholder="Ex: Trazer documento, chegar 10 min antes..."
+                />
+              </div>
               <Button 
                 type="submit" 
-                className="w-full h-14 text-lg font-bold rounded-xl" 
+                className="w-full h-14 text-lg font-bold rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-[1.02]" 
                 disabled={submitting}
               >
                 {submitting ? "Agendando..." : "✅ Confirmar Agendamento"}

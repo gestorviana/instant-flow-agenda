@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { Home, Calendar, Briefcase, DollarSign, Settings } from "lucide-react";
+import { Home, Calendar, Briefcase, DollarSign, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const BottomNav = () => {
@@ -10,8 +10,8 @@ export const BottomNav = () => {
     { icon: Home, label: "Início", path: "/" },
     { icon: Calendar, label: "Agenda", path: "/agendas" },
     { icon: Briefcase, label: "Serviços", path: "/servicos" },
+    { icon: Users, label: "Clientes", path: "/clientes" },
     { icon: DollarSign, label: "Financeiro", path: "/financeiro" },
-    { icon: Settings, label: "Config", path: "/config" },
   ];
 
   return (
