@@ -1,4 +1,3 @@
-// Tipos temporários até a atualização automática dos tipos do Supabase
 export interface Agenda {
   id: string;
   title: string;
@@ -31,6 +30,7 @@ export interface Booking {
   guest_phone: string | null;
   notes: string | null;
   status: string;
+  service_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -41,5 +41,27 @@ export interface Availability {
   day_of_week: number;
   start_time: string;
   end_time: string;
+  created_at: string;
+}
+
+export interface Service {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  duration_minutes: number;
+  price: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Expense {
+  id: string;
+  user_id: string;
+  description: string;
+  category: string;
+  amount: number;
+  date: string;
   created_at: string;
 }

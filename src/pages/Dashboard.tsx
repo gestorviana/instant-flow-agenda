@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar, Clock, CheckCircle, AlertCircle } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
+import { AppLayout } from "@/components/layout/AppLayout";
 
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -15,6 +15,7 @@ const Dashboard = () => {
     activeAgendas: 0,
     totalBookings: 0,
     pendingBookings: 0,
+    todayEarnings: 0,
   });
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -55,157 +56,132 @@ const Dashboard = () => {
       
       const { data: bookings } = await (supabase as any)
         .from("bookings")
-        .select("id, status")
+        .select(`
+          id, 
+          status,
+          booking_date,
+          services (price)
+        `)
         .in("agenda_id", agendaIds);
+
+      // Calcular ganhos do dia
+      const today = new Date().toISOString().split('T')[0];
+      const todayBookings = bookings?.filter((b: any) => 
+        b.booking_date === today && b.status === 'confirmed'
+      ) || [];
+      const todayEarnings = todayBookings.reduce((sum: number, b: any) => 
+        sum + (b.services?.price || 0), 0
+      );
 
       setStats({
         totalAgendas: agendas?.length || 0,
         activeAgendas: agendas?.filter((a: any) => a.is_active).length || 0,
         totalBookings: bookings?.length || 0,
         pendingBookings: bookings?.filter((b: any) => b.status === "pending").length || 0,
+        todayEarnings,
       });
     } catch (error) {
       console.error("Erro ao carregar estatísticas:", error);
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    toast({
-      title: "Logout realizado",
-      description: "Até logo!",
-    });
-    navigate("/auth");
+  const formatPrice = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <AppLayout>
         <p>Carregando...</p>
-      </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Flash Agenda ⚡</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">
-              {user?.email}
-            </span>
-            <Button variant="outline" onClick={handleLogout}>
-              Sair
-            </Button>
-          </div>
+    <AppLayout title="Flash Agenda ⚡">
+      <div className="max-w-2xl mx-auto space-y-6">
+        <Card className="bg-gradient-to-br from-primary/10 to-secondary/10 border-primary/20">
+          <CardHeader>
+            <CardTitle className="text-2xl">Ganhos Estimados Hoje</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-4xl font-bold text-primary">
+              {formatPrice(stats.todayEarnings)}
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">
+              Com base nos atendimentos finalizados
+            </p>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Total de Agendas
+              </CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalAgendas}</div>
+              <p className="text-xs text-muted-foreground">
+                {stats.activeAgendas} ativas
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Agendamentos
+              </CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalBookings}</div>
+              <p className="text-xs text-muted-foreground">
+                Total recebidos
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Pendentes
+              </CardTitle>
+              <AlertCircle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.pendingBookings}</div>
+              <p className="text-xs text-muted-foreground">
+                Aguardando confirmação
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Confirmados
+              </CardTitle>
+              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {stats.totalBookings - stats.pendingBookings}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Já confirmados
+              </p>
+            </CardContent>
+          </Card>
         </div>
-      </header>
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold mb-2">Bem-vindo ao Flash Agenda!</h2>
-          <p className="text-muted-foreground mb-8">
-            Gerencie suas agendas de forma rápida e eficiente.
-          </p>
-
-          <div className="grid gap-6 md:grid-cols-4 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total de Agendas
-                </CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.totalAgendas}</div>
-                <p className="text-xs text-muted-foreground">
-                  {stats.activeAgendas} ativas
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Agendamentos
-                </CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.totalBookings}</div>
-                <p className="text-xs text-muted-foreground">
-                  Total recebidos
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Pendentes
-                </CardTitle>
-                <AlertCircle className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.pendingBookings}</div>
-                <p className="text-xs text-muted-foreground">
-                  Aguardando confirmação
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Confirmados
-                </CardTitle>
-                <CheckCircle className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {stats.totalBookings - stats.pendingBookings}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Já confirmados
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate("/agendas")}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
-                  Minhas Agendas
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Crie e gerencie suas agendas personalizadas
-                </p>
-                <Button>Ver agendas</Button>
-              </CardContent>
-            </Card>
-
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate("/bookings")}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5" />
-                  Agendamentos
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Visualize e gerencie todos os seus agendamentos
-                </p>
-                <Button variant="outline">Ver agendamentos</Button>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 };
 
