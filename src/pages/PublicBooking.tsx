@@ -27,6 +27,7 @@ const PublicBooking = () => {
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
+    email: "",
   });
   const { toast } = useToast();
 
@@ -44,10 +45,12 @@ const PublicBooking = () => {
   }, [agenda]);
 
   useEffect(() => {
-    if (selectedDate && availability.length > 0) {
+    if (selectedDate && availability.length > 0 && agenda) {
       calculateAvailableTimes();
+    } else if (!selectedDate || availability.length === 0) {
+      setAvailableTimes([]);
     }
-  }, [selectedDate, availability]);
+  }, [selectedDate, availability, agenda]);
 
   const loadAgenda = async () => {
     try {
@@ -111,7 +114,10 @@ const PublicBooking = () => {
   };
 
   const calculateAvailableTimes = async () => {
-    if (!selectedDate || !agenda) return;
+    if (!selectedDate || !agenda) {
+      setAvailableTimes([]);
+      return;
+    }
 
     const dayOfWeek = selectedDate.getDay();
     const dayAvailability = availability.filter((a) => a.day_of_week === dayOfWeek);
@@ -121,13 +127,20 @@ const PublicBooking = () => {
       return;
     }
 
-    // Buscar agendamentos existentes para esta data
-    const { data: existingBookings } = await (supabase as any)
-        .from("bookings")
-        .select("start_time, end_time")
-        .eq("agenda_id", agenda.id)
-        .eq("booking_date", format(selectedDate, "yyyy-MM-dd"))
-        .in("status", ["pending", "confirmed"]);
+    try {
+      // Buscar agendamentos existentes para esta data
+      const { data: existingBookings, error } = await (supabase as any)
+          .from("bookings")
+          .select("start_time, end_time")
+          .eq("agenda_id", agenda.id)
+          .eq("booking_date", format(selectedDate, "yyyy-MM-dd"))
+          .in("status", ["pending", "confirmed"]);
+
+      if (error) {
+        console.error("Erro ao buscar agendamentos:", error);
+        setAvailableTimes([]);
+        return;
+      }
 
     const times: string[] = [];
     const slotDuration = 60; // 60 minutos por slot
@@ -167,9 +180,13 @@ const PublicBooking = () => {
 
         currentTime += slotDuration;
       }
-    });
+      });
 
-    setAvailableTimes(times);
+      setAvailableTimes(times);
+    } catch (error) {
+      console.error("Erro ao calcular horários:", error);
+      setAvailableTimes([]);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -194,6 +211,7 @@ const PublicBooking = () => {
           start_time: selectedTime,
           end_time: endTime,
           guest_name: formData.name,
+          guest_email: formData.email,
           guest_phone: formData.phone,
           service_id: selectedService.id,
           status: "pending",
@@ -414,6 +432,18 @@ const PublicBooking = () => {
                   required
                   className="h-12 rounded-xl text-base"
                   placeholder="Seu nome"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                  className="h-12 rounded-xl text-base"
+                  placeholder="seuemail@exemplo.com"
                 />
               </div>
               <div className="space-y-2">
