@@ -356,28 +356,35 @@ const PublicBooking = () => {
             <div className="grid gap-3">
               {services.map((service) => {
                 const isSelected = selectedServices.some(s => s.id === service.id);
-                const canSelect = selectedServices.length < 2;
+                const canSelect = selectedServices.length < 2 || isSelected;
                 
                 return (
                   <button
+                    type="button"
                     key={service.id}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      console.log('Clicou no serviço:', service.name, 'Selecionado:', isSelected);
+                      
                       if (isSelected) {
-                        setSelectedServices(selectedServices.filter(s => s.id !== service.id));
+                        const newServices = selectedServices.filter(s => s.id !== service.id);
+                        console.log('Removendo serviço. Novos selecionados:', newServices);
+                        setSelectedServices(newServices);
                         setSelectedDate(undefined);
                         setSelectedTime("");
-                      } else if (canSelect) {
-                        setSelectedServices([...selectedServices, service]);
+                      } else if (selectedServices.length < 2) {
+                        const newServices = [...selectedServices, service];
+                        console.log('Adicionando serviço. Novos selecionados:', newServices);
+                        setSelectedServices(newServices);
                         setSelectedDate(undefined);
                         setSelectedTime("");
                       }
                     }}
-                    disabled={!isSelected && !canSelect}
-                    className={`text-left p-4 rounded-xl border-2 transition-all hover:scale-[1.02] ${
+                    className={`text-left p-4 rounded-xl border-2 transition-all ${
                       isSelected
                         ? "border-primary bg-primary/10 shadow-lg"
                         : canSelect
-                        ? "border-border hover:border-primary/50 hover:shadow-md"
+                        ? "border-border hover:border-primary/50 hover:shadow-md cursor-pointer"
                         : "border-border opacity-50 cursor-not-allowed"
                     }`}
                   >
