@@ -172,7 +172,7 @@ const Config = () => {
 
   const copyLink = () => {
     if (agenda?.slug) {
-      const url = `${window.location.origin}/agendar/${agenda.slug}`;
+      const url = `https://link.flashagendas.app/agendar/${agenda.slug}`;
       navigator.clipboard.writeText(url);
       toast({
         title: "Link copiado!",
@@ -442,8 +442,9 @@ const Config = () => {
                 <Label>Link Público</Label>
                 <div className="flex gap-2">
                   <Input
-                    value={`${window.location.origin}/agendar/${agenda.slug}`}
+                    value={`https://link.flashagendas.app/agendar/${agenda.slug}`}
                     readOnly
+                    className="font-mono text-sm"
                   />
                   <Button variant="outline" size="icon" onClick={copyLink}>
                     <Copy className="h-4 w-4" />
