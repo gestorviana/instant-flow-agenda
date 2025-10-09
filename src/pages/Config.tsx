@@ -242,6 +242,57 @@ const Config = () => {
     }
   };
 
+  const testWebhook = async () => {
+    try {
+      setSaving(true);
+      
+      const testData = {
+        event_type: "test",
+        booking: {
+          id: "test-booking-id",
+          guest_name: "Cliente Teste",
+          guest_phone: "(11) 99999-9999",
+          booking_date: new Date().toISOString().split('T')[0],
+          start_time: "10:00",
+          end_time: "11:00",
+        },
+        agenda: {
+          title: agenda?.title || "Sua Agenda",
+        },
+        service: {
+          name: "Serviço Teste",
+          price: 50.00,
+          duration_minutes: 60,
+        }
+      };
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(testData),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Webhook testado com sucesso!",
+          description: "Verifique seu n8n para ver se recebeu os dados de teste.",
+        });
+      } else {
+        throw new Error(`Erro ${response.status}: ${response.statusText}`);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erro ao testar webhook",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <AppLayout>
@@ -348,6 +399,14 @@ const Config = () => {
                 <br />• Novo agendamento for criado
                 <br />• Status de agendamento for alterado (confirmado/cancelado)
               </p>
+              <Button 
+                onClick={testWebhook} 
+                variant="outline" 
+                className="w-full mt-2"
+                disabled={!webhookUrl || saving}
+              >
+                🧪 Testar Webhook
+              </Button>
             </div>
           </CardContent>
         </Card>

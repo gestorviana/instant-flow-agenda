@@ -24,7 +24,9 @@ serve(async (req) => {
 
     const { booking_id, event_type }: BookingNotification = await req.json();
     
-    console.log(`Processing ${event_type} event for booking ${booking_id}`);
+    console.log('📞 Webhook notification triggered');
+    console.log('Event type:', event_type);
+    console.log('Booking ID:', booking_id);
 
     // Buscar dados completos do booking
     const { data: booking, error: bookingError } = await supabase
@@ -46,9 +48,15 @@ serve(async (req) => {
       .single();
 
     if (bookingError || !booking) {
-      console.error("Erro ao buscar booking:", bookingError);
+      console.error("❌ Error fetching booking:", bookingError);
       throw new Error("Booking não encontrado");
     }
+
+    console.log('✅ Booking found:', {
+      id: booking.id,
+      guest_name: booking.guest_name,
+      agenda: booking.agendas?.title
+    });
 
     // Buscar configurações do usuário (webhook URL)
     const { data: settings, error: settingsError } = await supabase
@@ -58,7 +66,7 @@ serve(async (req) => {
       .single();
 
     if (settingsError || !settings?.webhook_url) {
-      console.log("Webhook URL não configurada para este usuário");
+      console.log("⚠️ No webhook URL configured for this user");
       return new Response(
         JSON.stringify({ message: "Webhook não configurado" }),
         { 
@@ -67,6 +75,8 @@ serve(async (req) => {
         }
       );
     }
+
+    console.log('🔗 Webhook URL found:', settings.webhook_url);
 
     // Preparar payload para webhook
     const webhookPayload = {
@@ -97,7 +107,7 @@ serve(async (req) => {
     };
 
     // Enviar para webhook n8n
-    console.log(`Enviando webhook para: ${settings.webhook_url}`);
+    console.log('📬 Sending webhook to:', settings.webhook_url);
     const webhookResponse = await fetch(settings.webhook_url, {
       method: "POST",
       headers: {
@@ -106,12 +116,18 @@ serve(async (req) => {
       body: JSON.stringify(webhookPayload),
     });
 
+    console.log('📨 Webhook response status:', webhookResponse.status);
+
     if (!webhookResponse.ok) {
-      console.error(`Webhook falhou: ${webhookResponse.status}`);
+      const errorText = await webhookResponse.text();
+      console.error('❌ Webhook failed:', {
+        status: webhookResponse.status,
+        error: errorText
+      });
       throw new Error(`Webhook retornou status ${webhookResponse.status}`);
     }
 
-    console.log("Webhook enviado com sucesso!");
+    console.log("✅ Webhook sent successfully!");
 
     return new Response(
       JSON.stringify({ 
