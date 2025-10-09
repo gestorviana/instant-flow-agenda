@@ -15,6 +15,7 @@ const Config = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
+  const [agenda, setAgenda] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -40,6 +41,7 @@ const Config = () => {
   useEffect(() => {
     if (user) {
       loadProfile();
+      loadAgenda();
     }
   }, [user]);
 
@@ -61,6 +63,22 @@ const Config = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAgenda = async () => {
+    try {
+      const { data, error } = await (supabase as any)
+        .from("agendas")
+        .select("*")
+        .eq("user_id", user!.id)
+        .eq("is_active", true)
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+      setAgenda(data);
+    } catch (error: any) {
+      console.error("Erro ao carregar agenda:", error);
     }
   };
 
@@ -112,19 +130,9 @@ const Config = () => {
     }
   };
 
-  const generateSlug = (name: string) => {
-    return name
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "");
-  };
-
   const copyLink = () => {
-    if (profile?.full_name) {
-      const slug = generateSlug(profile.full_name);
-      const url = `${window.location.origin}/agendar/${slug}`;
+    if (agenda?.slug) {
+      const url = `${window.location.origin}/agendar/${agenda.slug}`;
       navigator.clipboard.writeText(url);
       toast({
         title: "Link copiado!",
@@ -192,12 +200,12 @@ const Config = () => {
               <Input value={profile?.phone || ""} disabled />
             </div>
 
-            {profile?.full_name && (
+            {agenda?.slug && (
               <div className="space-y-2">
                 <Label>Link Público</Label>
                 <div className="flex gap-2">
                   <Input
-                    value={`${window.location.origin}/agendar/${generateSlug(profile.full_name)}`}
+                    value={`${window.location.origin}/agendar/${agenda.slug}`}
                     readOnly
                   />
                   <Button variant="outline" size="icon" onClick={copyLink}>
