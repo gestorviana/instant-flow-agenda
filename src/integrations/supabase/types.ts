@@ -302,6 +302,7 @@ export type Database = {
           created_at: string | null
           id: string
           lunch_break: Json | null
+          reminder_message: string | null
           reminders_minutes: number[] | null
           temp_blocks: Json | null
           updated_at: string | null
@@ -313,6 +314,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           lunch_break?: Json | null
+          reminder_message?: string | null
           reminders_minutes?: number[] | null
           temp_blocks?: Json | null
           updated_at?: string | null
@@ -324,6 +326,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           lunch_break?: Json | null
+          reminder_message?: string | null
           reminders_minutes?: number[] | null
           temp_blocks?: Json | null
           updated_at?: string | null

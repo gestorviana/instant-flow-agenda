@@ -8,6 +8,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Camera, Copy, Webhook, Bell, Check } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,6 +22,7 @@ const Config = () => {
   const [settings, setSettings] = useState<any>(null);
   const [webhookUrl, setWebhookUrl] = useState("");
   const [reminders, setReminders] = useState<number[]>([30]);
+  const [reminderMessage, setReminderMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -108,10 +110,12 @@ const Config = () => {
         setSettings(newSettings);
         setWebhookUrl(newSettings?.webhook_url || "");
         setReminders(newSettings?.reminders_minutes || [30]);
+        setReminderMessage(newSettings?.reminder_message || "Olá! Este é um lembrete do seu agendamento.");
       } else {
         setSettings(data);
         setWebhookUrl(data?.webhook_url || "");
         setReminders(data?.reminders_minutes || [30]);
+        setReminderMessage(data?.reminder_message || "Olá! Este é um lembrete do seu agendamento.");
       }
     } catch (error: any) {
       console.error("Erro ao carregar configurações:", error);
@@ -207,7 +211,10 @@ const Config = () => {
       setSaving(true);
       const { error } = await (supabase as any)
         .from("settings")
-        .update({ reminders_minutes: reminders })
+        .update({ 
+          reminders_minutes: reminders,
+          reminder_message: reminderMessage 
+        })
         .eq("user_id", user!.id);
 
       if (error) throw error;
@@ -357,6 +364,22 @@ const Config = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="reminder-message">Mensagem do Lembrete</Label>
+                <Textarea
+                  id="reminder-message"
+                  placeholder="Escreva a mensagem que será enviada como lembrete..."
+                  value={reminderMessage}
+                  onChange={(e) => setReminderMessage(e.target.value)}
+                  rows={4}
+                  className="resize-none"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Esta mensagem será enviada aos clientes nos horários selecionados abaixo.
+                  Você pode incluir informações como nome do serviço, data e horário.
+                </p>
+              </div>
+
               <Label>Enviar lembrete:</Label>
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
