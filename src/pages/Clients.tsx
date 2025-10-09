@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Users, TrendingUp, Calendar, Phone } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { AppLayout } from "@/components/layout/AppLayout";
 
 interface Client {
   id: string;
@@ -30,6 +31,26 @@ const Clients = () => {
     loadClients();
   }, []);
 
+  useEffect(() => {
+    if (!loading && clients.length > 0) {
+      // Calcular estatísticas após carregar
+      const now = new Date();
+      const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      
+      const newThisMonth = clients.filter((c: Client) => 
+        new Date(c.first_booking_date) >= thisMonth
+      ).length;
+      
+      const returning = clients.filter((c: Client) => c.total_bookings > 1).length;
+
+      setStats({
+        total: clients.length,
+        newThisMonth,
+        returning,
+      });
+    }
+  }, [clients, loading]);
+
   const loadClients = async () => {
     try {
       const { data, error } = await (supabase as any)
@@ -40,22 +61,6 @@ const Clients = () => {
       if (error) throw error;
 
       setClients(data || []);
-      
-      // Calcular estatísticas
-      const now = new Date();
-      const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      
-      const newThisMonth = data?.filter((c: Client) => 
-        new Date(c.first_booking_date) >= thisMonth
-      ).length || 0;
-      
-      const returning = data?.filter((c: Client) => c.total_bookings > 1).length || 0;
-
-      setStats({
-        total: data?.length || 0,
-        newThisMonth,
-        returning,
-      });
     } catch (error: any) {
       console.error("Erro ao carregar clientes:", error);
       toast({
@@ -77,14 +82,17 @@ const Clients = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <p className="text-muted-foreground">Carregando clientes...</p>
-      </div>
+      <AppLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <p className="text-muted-foreground">Carregando clientes...</p>
+        </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <AppLayout>
+      <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold mb-2">Clientes</h1>
         <p className="text-muted-foreground">
@@ -180,6 +188,7 @@ const Clients = () => {
         </CardContent>
       </Card>
     </div>
+    </AppLayout>
   );
 };
 
