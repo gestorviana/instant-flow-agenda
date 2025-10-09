@@ -27,7 +27,6 @@ const PublicBooking = () => {
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
-    reminder: "",
   });
   const { toast } = useToast();
 
@@ -197,7 +196,6 @@ const PublicBooking = () => {
           guest_name: formData.name,
           guest_phone: formData.phone,
           service_id: selectedService.id,
-          custom_reminder: formData.reminder,
           status: "pending",
         })
         .select()
@@ -430,17 +428,7 @@ const PublicBooking = () => {
                   placeholder="(00) 00000-0000"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="reminder">Lembrete personalizado (opcional)</Label>
-                <Input
-                  id="reminder"
-                  value={formData.reminder}
-                  onChange={(e) => setFormData({ ...formData, reminder: e.target.value })}
-                  className="h-12 rounded-xl text-base"
-                  placeholder="Ex: Trazer documento, chegar 10 min antes..."
-                />
-              </div>
-              <Button 
+              <Button
                 type="submit" 
                 className="w-full h-14 text-lg font-bold rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-[1.02]" 
                 disabled={submitting}
