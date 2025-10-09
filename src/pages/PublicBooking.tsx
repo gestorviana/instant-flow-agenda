@@ -4,18 +4,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar as CalendarIcon, Clock, CheckCircle } from "lucide-react";
-import type { Agenda, Availability } from "@/types/database";
+import type { Agenda, Availability, Service } from "@/types/database";
 import { format, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const PublicBooking = () => {
   const { slug } = useParams();
   const [agenda, setAgenda] = useState<Agenda | null>(null);
+  const [services, setServices] = useState<Service[]>([]);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedTime, setSelectedTime] = useState<string>("");
@@ -27,7 +28,6 @@ const PublicBooking = () => {
     name: "",
     email: "",
     phone: "",
-    notes: "",
   });
   const { toast } = useToast();
 
@@ -40,6 +40,7 @@ const PublicBooking = () => {
   useEffect(() => {
     if (agenda) {
       loadAvailability();
+      loadServices();
     }
   }, [agenda]);
 
@@ -92,6 +93,21 @@ const PublicBooking = () => {
       setAvailability(data || []);
     } catch (error: any) {
       console.error("Erro ao carregar disponibilidade:", error);
+    }
+  };
+
+  const loadServices = async () => {
+    try {
+      const { data, error } = await (supabase as any)
+        .from("services")
+        .select("*")
+        .eq("user_id", agenda!.user_id)
+        .eq("active", true);
+
+      if (error) throw error;
+      setServices(data || []);
+    } catch (error: any) {
+      console.error("Erro ao carregar serviços:", error);
     }
   };
 
@@ -159,14 +175,17 @@ const PublicBooking = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedDate || !selectedTime || !agenda) return;
+    if (!selectedDate || !selectedTime || !agenda || !selectedService) return;
 
     setSubmitting(true);
 
     try {
+      const serviceDuration = selectedService.duration_minutes;
       const [hour, min] = selectedTime.split(":").map(Number);
-      const endHour = hour + 1;
-      const endTime = `${endHour.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}`;
+      const totalMinutes = hour * 60 + min + serviceDuration;
+      const endHour = Math.floor(totalMinutes / 60);
+      const endMin = totalMinutes % 60;
+      const endTime = `${endHour.toString().padStart(2, "0")}:${endMin.toString().padStart(2, "0")}`;
 
       const { error } = await (supabase as any).from("bookings").insert({
         agenda_id: agenda.id,
@@ -175,8 +194,8 @@ const PublicBooking = () => {
         end_time: endTime,
         guest_name: formData.name,
         guest_email: formData.email,
-        guest_phone: formData.phone || null,
-        notes: formData.notes || null,
+        guest_phone: formData.phone,
+        service_id: selectedService.id,
         status: "pending",
       });
 
@@ -230,7 +249,8 @@ const PublicBooking = () => {
             </p>
           </div>
           <div className="bg-card border rounded-2xl p-6 text-left space-y-3">
-            <p className="font-bold text-xl">{agenda.title}</p>
+            <p className="font-bold text-xl">{selectedService?.name}</p>
+            <p className="text-sm text-muted-foreground">{agenda.title}</p>
             <div className="flex items-center gap-2 text-muted-foreground">
               <CalendarIcon className="h-5 w-5" />
               <span>{format(selectedDate!, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
@@ -238,6 +258,9 @@ const PublicBooking = () => {
             <div className="flex items-center gap-2 text-muted-foreground">
               <Clock className="h-5 w-5" />
               <span className="text-2xl font-bold text-foreground">{selectedTime}</span>
+            </div>
+            <div className="text-lg font-bold text-primary">
+              R$ {selectedService?.price.toFixed(2)}
             </div>
           </div>
         </div>
@@ -258,25 +281,60 @@ const PublicBooking = () => {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Step 1: Selecionar Data */}
-        <div className="bg-card border rounded-2xl p-6">
-          <h2 className="text-lg font-bold mb-4">📅 Escolha a data</h2>
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={setSelectedDate}
-            disabled={(date) => {
-              const dayOfWeek = date.getDay();
-              const hasAvailability = availability.some((a) => a.day_of_week === dayOfWeek);
-              return date < startOfDay(new Date()) || !hasAvailability;
-            }}
-            locale={ptBR}
-            className="rounded-xl border mx-auto"
-          />
-        </div>
+        {/* Step 1: Selecionar Serviço */}
+        {services.length > 0 && (
+          <div className="bg-card border rounded-2xl p-6">
+            <h2 className="text-lg font-bold mb-4">💼 Escolha o serviço</h2>
+            <div className="grid gap-3">
+              {services.map((service) => (
+                <button
+                  key={service.id}
+                  onClick={() => setSelectedService(service)}
+                  className={`text-left p-4 rounded-xl border-2 transition-all ${
+                    selectedService?.id === service.id
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/50"
+                  }`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-bold">{service.name}</p>
+                      <p className="text-sm text-muted-foreground">{service.description}</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        ⏱️ {service.duration_minutes} minutos
+                      </p>
+                    </div>
+                    <p className="text-lg font-bold text-primary">
+                      R$ {service.price.toFixed(2)}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
-        {/* Step 2: Selecionar Horário */}
-        {selectedDate && (
+        {/* Step 2: Selecionar Data */}
+        {selectedService && (
+          <div className="bg-card border rounded-2xl p-6">
+            <h2 className="text-lg font-bold mb-4">📅 Escolha a data</h2>
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={setSelectedDate}
+              disabled={(date) => {
+                const dayOfWeek = date.getDay();
+                const hasAvailability = availability.some((a) => a.day_of_week === dayOfWeek);
+                return date < startOfDay(new Date()) || !hasAvailability;
+              }}
+              locale={ptBR}
+              className="rounded-xl border mx-auto"
+            />
+          </div>
+        )}
+
+        {/* Step 3: Selecionar Horário */}
+        {selectedDate && selectedService && (
           <div className="bg-card border rounded-2xl p-6">
             <h2 className="text-lg font-bold mb-2">⏰ Escolha o horário</h2>
             <p className="text-sm text-muted-foreground mb-4">
@@ -307,8 +365,8 @@ const PublicBooking = () => {
           </div>
         )}
 
-        {/* Step 3: Formulário */}
-        {selectedTime && (
+        {/* Step 4: Formulário */}
+        {selectedTime && selectedService && (
           <div className="bg-card border rounded-2xl p-6">
             <h2 className="text-lg font-bold mb-4">✏️ Seus dados</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -336,25 +394,15 @@ const PublicBooking = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone">WhatsApp</Label>
+                <Label htmlFor="phone">WhatsApp *</Label>
                 <Input
                   id="phone"
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  required
                   className="h-12 rounded-xl text-base"
                   placeholder="(00) 00000-0000"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="notes">Observações (opcional)</Label>
-                <Textarea
-                  id="notes"
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  rows={3}
-                  className="rounded-xl resize-none"
-                  placeholder="Alguma informação adicional?"
                 />
               </div>
               <Button 
