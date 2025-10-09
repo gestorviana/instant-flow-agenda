@@ -9,6 +9,7 @@ export const BottomNav = () => {
   const navItems = [
     { icon: Home, label: "Início", path: "/" },
     { icon: Calendar, label: "Agenda", path: "/agendas" },
+    { icon: Briefcase, label: "Serviços", path: "/servicos" },
     { icon: Users, label: "Clientes", path: "/clientes" },
     { icon: DollarSign, label: "Financeiro", path: "/financeiro" },
     { icon: Settings, label: "Config", path: "/config" },
