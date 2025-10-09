@@ -16,7 +16,7 @@ const PublicBooking = () => {
   const { slug } = useParams();
   const [agenda, setAgenda] = useState<Agenda | null>(null);
   const [services, setServices] = useState<Service[]>([]);
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedTime, setSelectedTime] = useState<string>("");
@@ -50,7 +50,7 @@ const PublicBooking = () => {
     } else if (!selectedDate || availability.length === 0) {
       setAvailableTimes([]);
     }
-  }, [selectedDate, availability, agenda, selectedService]);
+  }, [selectedDate, availability, agenda, selectedServices]);
 
   const loadAgenda = async () => {
     try {
@@ -114,7 +114,7 @@ const PublicBooking = () => {
   };
 
   const calculateAvailableTimes = async () => {
-    if (!selectedDate || !agenda || !selectedService) {
+    if (!selectedDate || !agenda || selectedServices.length === 0) {
       setAvailableTimes([]);
       return;
     }
@@ -143,7 +143,7 @@ const PublicBooking = () => {
       }
 
     const times: string[] = [];
-    const slotDuration = selectedService.duration_minutes; // Duração baseada no serviço
+    const slotDuration = selectedServices.reduce((total, service) => total + service.duration_minutes, 0); // Duração total dos serviços
 
     // Função auxiliar para verificar se um horário está bloqueado
     const isTimeBlocked = (timeStr: string) => {
@@ -191,35 +191,49 @@ const PublicBooking = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedDate || !selectedTime || !agenda || !selectedService) return;
+    if (!selectedDate || !selectedTime || !agenda || selectedServices.length === 0) return;
 
     setSubmitting(true);
 
     try {
-      const serviceDuration = selectedService.duration_minutes;
+      const totalDuration = selectedServices.reduce((total, service) => total + service.duration_minutes, 0);
       const [hour, min] = selectedTime.split(":").map(Number);
-      const totalMinutes = hour * 60 + min + serviceDuration;
+      const totalMinutes = hour * 60 + min + totalDuration;
       const endHour = Math.floor(totalMinutes / 60);
       const endMin = totalMinutes % 60;
       const endTime = `${endHour.toString().padStart(2, "0")}:${endMin.toString().padStart(2, "0")}`;
 
-      const { data: bookingData, error: bookingError } = await (supabase as any)
-        .from("bookings")
-        .insert({
-          agenda_id: agenda.id,
-          booking_date: format(selectedDate, "yyyy-MM-dd"),
-          start_time: selectedTime,
-          end_time: endTime,
-          guest_name: formData.name,
-          guest_email: formData.email,
-          guest_phone: formData.phone,
-          service_id: selectedService.id,
-          status: "pending",
-        })
-        .select()
-        .single();
+      // Criar um booking para cada serviço selecionado
+      const bookingPromises = selectedServices.map(async (service, index) => {
+        const serviceStartMinutes = hour * 60 + min + (index > 0 ? selectedServices.slice(0, index).reduce((sum, s) => sum + s.duration_minutes, 0) : 0);
+        const serviceEndMinutes = serviceStartMinutes + service.duration_minutes;
+        const serviceStartHour = Math.floor(serviceStartMinutes / 60);
+        const serviceStartMin = serviceStartMinutes % 60;
+        const serviceEndHour = Math.floor(serviceEndMinutes / 60);
+        const serviceEndMin = serviceEndMinutes % 60;
+        
+        return (supabase as any)
+          .from("bookings")
+          .insert({
+            agenda_id: agenda.id,
+            booking_date: format(selectedDate, "yyyy-MM-dd"),
+            start_time: `${serviceStartHour.toString().padStart(2, "0")}:${serviceStartMin.toString().padStart(2, "0")}`,
+            end_time: `${serviceEndHour.toString().padStart(2, "0")}:${serviceEndMin.toString().padStart(2, "0")}`,
+            guest_name: formData.name,
+            guest_email: formData.email,
+            guest_phone: formData.phone,
+            service_id: service.id,
+            status: "pending",
+          })
+          .select()
+          .single();
+      });
 
-      if (bookingError) throw bookingError;
+      const bookingResults = await Promise.all(bookingPromises);
+      const firstBookingError = bookingResults.find(result => result.error);
+      if (firstBookingError?.error) throw firstBookingError.error;
+
+      const bookingData = bookingResults[0].data;
 
       // Notificar via webhook sobre novo agendamento
       try {
@@ -282,7 +296,11 @@ const PublicBooking = () => {
             </p>
           </div>
           <div className="bg-card border rounded-2xl p-6 text-left space-y-3">
-            <p className="font-bold text-xl">{selectedService?.name}</p>
+            <div className="space-y-2">
+              {selectedServices.map((service) => (
+                <p key={service.id} className="font-bold text-xl">{service.name}</p>
+              ))}
+            </div>
             <p className="text-sm text-muted-foreground">{agenda.title}</p>
             <div className="flex items-center gap-2 text-muted-foreground">
               <CalendarIcon className="h-5 w-5" />
@@ -293,7 +311,7 @@ const PublicBooking = () => {
               <span className="text-2xl font-bold text-foreground">{selectedTime}</span>
             </div>
             <div className="text-lg font-bold text-primary">
-              R$ {selectedService?.price.toFixed(2)}
+              R$ {selectedServices.reduce((total, service) => total + Number(service.price), 0).toFixed(2)}
             </div>
           </div>
         </div>
@@ -326,43 +344,83 @@ const PublicBooking = () => {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Step 1: Selecionar Serviço */}
+        {/* Step 1: Selecionar Serviços */}
         {services.length > 0 && (
           <div className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <span className="text-2xl">💼</span> Escolha o serviço
+            <h2 className="text-lg font-bold mb-2 flex items-center gap-2">
+              <span className="text-2xl">💼</span> Escolha até 2 serviços
             </h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              {selectedServices.length}/2 serviços selecionados
+            </p>
             <div className="grid gap-3">
-              {services.map((service) => (
-                <button
-                  key={service.id}
-                  onClick={() => setSelectedService(service)}
-                  className={`text-left p-4 rounded-xl border-2 transition-all hover:scale-[1.02] ${
-                    selectedService?.id === service.id
-                      ? "border-primary bg-primary/10 shadow-lg"
-                      : "border-border hover:border-primary/50 hover:shadow-md"
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-bold">{service.name}</p>
-                      <p className="text-sm text-muted-foreground">{service.description}</p>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        ⏱️ {service.duration_minutes} minutos
+              {services.map((service) => {
+                const isSelected = selectedServices.some(s => s.id === service.id);
+                const canSelect = selectedServices.length < 2;
+                
+                return (
+                  <button
+                    key={service.id}
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedServices(selectedServices.filter(s => s.id !== service.id));
+                      } else if (canSelect) {
+                        setSelectedServices([...selectedServices, service]);
+                      }
+                    }}
+                    disabled={!isSelected && !canSelect}
+                    className={`text-left p-4 rounded-xl border-2 transition-all hover:scale-[1.02] ${
+                      isSelected
+                        ? "border-primary bg-primary/10 shadow-lg"
+                        : canSelect
+                        ? "border-border hover:border-primary/50 hover:shadow-md"
+                        : "border-border opacity-50 cursor-not-allowed"
+                    }`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex gap-3">
+                        <div className={`flex-shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center ${
+                          isSelected ? "border-primary bg-primary" : "border-border"
+                        }`}>
+                          {isSelected && <span className="text-primary-foreground text-sm">✓</span>}
+                        </div>
+                        <div>
+                          <p className="font-bold">{service.name}</p>
+                          <p className="text-sm text-muted-foreground">{service.description}</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            ⏱️ {service.duration_minutes} minutos
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-lg font-bold text-primary">
+                        R$ {service.price.toFixed(2)}
                       </p>
                     </div>
-                    <p className="text-lg font-bold text-primary">
-                      R$ {service.price.toFixed(2)}
-                    </p>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
+            {selectedServices.length > 0 && (
+              <div className="mt-4 pt-4 border-t">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold">Duração total:</span>
+                  <span className="text-muted-foreground">
+                    {selectedServices.reduce((total, s) => total + s.duration_minutes, 0)} minutos
+                  </span>
+                </div>
+                <div className="flex justify-between items-center mt-2">
+                  <span className="font-semibold">Total:</span>
+                  <span className="text-xl font-bold text-primary">
+                    R$ {selectedServices.reduce((total, s) => total + Number(s.price), 0).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Step 2: Selecionar Data */}
-        {selectedService && (
+        {selectedServices.length > 0 && (
           <div className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow animate-scale-in">
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
               <span className="text-2xl">📅</span> Escolha a data
@@ -385,7 +443,7 @@ const PublicBooking = () => {
         )}
 
         {/* Step 3: Selecionar Horário */}
-        {selectedDate && selectedService && (
+        {selectedDate && selectedServices.length > 0 && (
           <div className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow animate-scale-in">
             <h2 className="text-lg font-bold mb-2 flex items-center gap-2">
               <span className="text-2xl">⏰</span> Escolha o horário
@@ -419,7 +477,7 @@ const PublicBooking = () => {
         )}
 
         {/* Step 4: Formulário */}
-        {selectedTime && selectedService && (
+        {selectedTime && selectedServices.length > 0 && (
           <div className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow animate-scale-in">
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
               <span className="text-2xl">✏️</span> Seus dados
