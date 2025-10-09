@@ -187,19 +187,36 @@ const PublicBooking = () => {
       const endMin = totalMinutes % 60;
       const endTime = `${endHour.toString().padStart(2, "0")}:${endMin.toString().padStart(2, "0")}`;
 
-      const { error } = await (supabase as any).from("bookings").insert({
-        agenda_id: agenda.id,
-        booking_date: format(selectedDate, "yyyy-MM-dd"),
-        start_time: selectedTime,
-        end_time: endTime,
-        guest_name: formData.name,
-        guest_email: formData.email,
-        guest_phone: formData.phone,
-        service_id: selectedService.id,
-        status: "pending",
-      });
+      const { data: bookingData, error: bookingError } = await (supabase as any)
+        .from("bookings")
+        .insert({
+          agenda_id: agenda.id,
+          booking_date: format(selectedDate, "yyyy-MM-dd"),
+          start_time: selectedTime,
+          end_time: endTime,
+          guest_name: formData.name,
+          guest_email: formData.email,
+          guest_phone: formData.phone,
+          service_id: selectedService.id,
+          status: "pending",
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (bookingError) throw bookingError;
+
+      // Notificar via webhook sobre novo agendamento
+      try {
+        await supabase.functions.invoke("notify-booking", {
+          body: {
+            booking_id: bookingData.id,
+            event_type: "created",
+          },
+        });
+      } catch (webhookError) {
+        console.error("Erro ao enviar webhook:", webhookError);
+        // Não bloqueia o agendamento se o webhook falhar
+      }
 
       setSuccess(true);
       toast({

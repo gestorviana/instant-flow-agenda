@@ -91,6 +91,18 @@ const Bookings = () => {
 
       if (error) throw error;
 
+      // Notificar via webhook
+      try {
+        await supabase.functions.invoke("notify-booking", {
+          body: {
+            booking_id: bookingId,
+            event_type: status === "confirmed" ? "confirmed" : "cancelled",
+          },
+        });
+      } catch (webhookError) {
+        console.error("Erro ao enviar webhook:", webhookError);
+      }
+
       toast({
         title: "Status atualizado",
         description: `Agendamento ${status === "confirmed" ? "confirmado" : "cancelado"}.`,

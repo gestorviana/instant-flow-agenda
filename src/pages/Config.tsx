@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Camera, Copy } from "lucide-react";
+import { Camera, Copy, Webhook, Bell, Check } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const Config = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -17,6 +18,10 @@ const Config = () => {
   const [profile, setProfile] = useState<any>(null);
   const [agenda, setAgenda] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
+  const [settings, setSettings] = useState<any>(null);
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [reminders, setReminders] = useState<number[]>([30]);
+  const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -42,6 +47,7 @@ const Config = () => {
     if (user) {
       loadProfile();
       loadAgenda();
+      loadSettings();
     }
   }, [user]);
 
@@ -79,6 +85,36 @@ const Config = () => {
       setAgenda(data);
     } catch (error: any) {
       console.error("Erro ao carregar agenda:", error);
+    }
+  };
+
+  const loadSettings = async () => {
+    try {
+      const { data, error } = await (supabase as any)
+        .from("settings")
+        .select("*")
+        .eq("user_id", user!.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        // Se não existe, cria um novo
+        const { data: newSettings, error: insertError } = await (supabase as any)
+          .from("settings")
+          .insert({ user_id: user!.id })
+          .select()
+          .single();
+        
+        if (insertError) throw insertError;
+        setSettings(newSettings);
+        setWebhookUrl(newSettings?.webhook_url || "");
+        setReminders(newSettings?.reminders_minutes || [30]);
+      } else {
+        setSettings(data);
+        setWebhookUrl(data?.webhook_url || "");
+        setReminders(data?.reminders_minutes || [30]);
+      }
+    } catch (error: any) {
+      console.error("Erro ao carregar configurações:", error);
     }
   };
 
@@ -138,6 +174,64 @@ const Config = () => {
         title: "Link copiado!",
         description: "O link foi copiado para a área de transferência.",
       });
+    }
+  };
+
+  const saveWebhook = async () => {
+    try {
+      setSaving(true);
+      const { error } = await (supabase as any)
+        .from("settings")
+        .update({ webhook_url: webhookUrl })
+        .eq("user_id", user!.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Webhook configurado!",
+        description: "A URL do webhook foi salva com sucesso.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao salvar webhook",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveReminders = async () => {
+    try {
+      setSaving(true);
+      const { error } = await (supabase as any)
+        .from("settings")
+        .update({ reminders_minutes: reminders })
+        .eq("user_id", user!.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Lembretes configurados!",
+        description: "As configurações de lembrete foram salvas.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao salvar lembretes",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleReminder = (minutes: number) => {
+    if (reminders.includes(minutes)) {
+      setReminders(reminders.filter(m => m !== minutes));
+    } else {
+      setReminders([...reminders, minutes]);
     }
   };
 
@@ -219,29 +313,101 @@ const Config = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Notificações</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Webhook className="h-5 w-5" />
+              Integração Webhook n8n
+            </CardTitle>
             <CardDescription>
-              Configure lembretes de agendamentos
+              Receba notificações automáticas de novos agendamentos e mudanças de status
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Em breve: configure lembretes 15/30/60 minutos antes dos atendimentos
-            </p>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="webhook">URL do Webhook</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="webhook"
+                  placeholder="https://seu-n8n.app/webhook/..."
+                  value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
+                />
+                <Button onClick={saveWebhook} disabled={saving}>
+                  <Check className="h-4 w-4 mr-2" />
+                  Salvar
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Cole aqui a URL do webhook do seu n8n. Você receberá notificações quando:
+                <br />• Novo agendamento for criado
+                <br />• Status de agendamento for alterado (confirmado/cancelado)
+              </p>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Integração Webhook</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Lembretes Automáticos
+            </CardTitle>
             <CardDescription>
-              Conecte com n8n ou outras automações
+              Configure quando você quer ser notificado antes dos agendamentos
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Em breve: configure webhooks para receber eventos em tempo real
-            </p>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              <Label>Enviar lembrete:</Label>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="reminder-15"
+                    checked={reminders.includes(15)}
+                    onCheckedChange={() => toggleReminder(15)}
+                  />
+                  <label htmlFor="reminder-15" className="text-sm cursor-pointer">
+                    15 minutos antes
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="reminder-30"
+                    checked={reminders.includes(30)}
+                    onCheckedChange={() => toggleReminder(30)}
+                  />
+                  <label htmlFor="reminder-30" className="text-sm cursor-pointer">
+                    30 minutos antes
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="reminder-60"
+                    checked={reminders.includes(60)}
+                    onCheckedChange={() => toggleReminder(60)}
+                  />
+                  <label htmlFor="reminder-60" className="text-sm cursor-pointer">
+                    1 hora antes
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="reminder-1440"
+                    checked={reminders.includes(1440)}
+                    onCheckedChange={() => toggleReminder(1440)}
+                  />
+                  <label htmlFor="reminder-1440" className="text-sm cursor-pointer">
+                    1 dia antes
+                  </label>
+                </div>
+              </div>
+              <Button onClick={saveReminders} disabled={saving} className="w-full">
+                <Check className="h-4 w-4 mr-2" />
+                Salvar Configurações de Lembrete
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Os lembretes serão enviados via webhook n8n (configure a URL acima)
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
