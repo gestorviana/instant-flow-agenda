@@ -107,6 +107,23 @@ const PublicBooking = () => {
     const times: string[] = [];
     const slotDuration = 60; // 60 minutos por slot
 
+    // Função auxiliar para verificar se um horário está bloqueado
+    const isTimeBlocked = (timeStr: string) => {
+      // Verificar bloqueio de almoço
+      if (agenda.lunch_break_start && agenda.lunch_break_end) {
+        const lunchStart = agenda.lunch_break_start.substring(0, 5); // HH:MM
+        const lunchEnd = agenda.lunch_break_end.substring(0, 5);
+        if (timeStr >= lunchStart && timeStr < lunchEnd) {
+          return true;
+        }
+      }
+      
+      // Verificar se já está agendado
+      return existingBookings?.some((booking: any) => {
+        return booking.start_time <= timeStr && booking.end_time > timeStr;
+      });
+    };
+
     dayAvailability.forEach((slot) => {
       const [startHour, startMin] = slot.start_time.split(":").map(Number);
       const [endHour, endMin] = slot.end_time.split(":").map(Number);
@@ -119,12 +136,7 @@ const PublicBooking = () => {
         const min = currentTime % 60;
         const timeStr = `${hour.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}`;
         
-        // Verificar se este horário já está agendado
-        const isBooked = existingBookings?.some((booking: any) => {
-          return booking.start_time <= timeStr && booking.end_time > timeStr;
-        });
-
-        if (!isBooked) {
+        if (!isTimeBlocked(timeStr)) {
           times.push(timeStr);
         }
 
