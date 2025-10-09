@@ -51,16 +51,26 @@ const PublicBooking = () => {
 
   const loadAgenda = async () => {
     try {
+      if (!slug) {
+        throw new Error("Slug inválido");
+      }
+
       const { data, error } = await (supabase as any)
         .from("agendas")
         .select("*")
         .eq("slug", slug)
         .eq("is_active", true)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+      
+      if (!data) {
+        throw new Error("Agenda não encontrada");
+      }
+      
       setAgenda(data);
     } catch (error: any) {
+      console.error("Erro ao carregar agenda:", error);
       toast({
         title: "Agenda não encontrada",
         description: "Esta agenda não está disponível.",
