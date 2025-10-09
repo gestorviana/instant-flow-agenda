@@ -271,6 +271,113 @@ const Config = () => {
     }
   };
 
+  const sendRemindersNow = async () => {
+    try {
+      setSaving(true);
+
+      if (!webhookUrl) {
+        throw new Error("Configure a URL do webhook primeiro");
+      }
+
+      // Buscar todas as agendas do usuário
+      const { data: agendas, error: agendasError } = await (supabase as any)
+        .from("agendas")
+        .select("id")
+        .eq("user_id", user!.id);
+
+      if (agendasError) throw agendasError;
+
+      if (!agendas || agendas.length === 0) {
+        throw new Error("Nenhuma agenda encontrada");
+      }
+
+      const agendaIds = agendas.map((a: any) => a.id);
+
+      // Buscar próximos agendamentos confirmados de todas as agendas
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 7); // próximos 7 dias
+
+      const { data: bookings, error: bookingsError } = await (supabase as any)
+        .from("bookings")
+        .select(`
+          *,
+          agendas (title),
+          services (name, price, duration_minutes)
+        `)
+        .in("agenda_id", agendaIds)
+        .eq("status", "confirmed")
+        .gte("booking_date", new Date().toISOString().split('T')[0])
+        .lte("booking_date", tomorrow.toISOString().split('T')[0])
+        .order("booking_date", { ascending: true })
+        .order("start_time", { ascending: true });
+
+      if (bookingsError) throw bookingsError;
+
+      if (!bookings || bookings.length === 0) {
+        toast({
+          title: "Nenhum agendamento encontrado",
+          description: "Não há agendamentos confirmados nos próximos 7 dias.",
+        });
+        return;
+      }
+
+      // Enviar lembretes
+      let sent = 0;
+      for (const booking of bookings) {
+        try {
+          const reminderPayload = {
+            event_type: "reminder",
+            timestamp: new Date().toISOString(),
+            booking: {
+              id: booking.id,
+              date: booking.booking_date,
+              start_time: booking.start_time,
+              end_time: booking.end_time,
+              guest: {
+                name: booking.guest_name,
+                phone: booking.guest_phone,
+              },
+              agenda: {
+                title: booking.agendas?.title,
+              },
+              service: booking.services ? {
+                name: booking.services.name,
+                price: booking.services.price,
+                duration: booking.services.duration_minutes,
+              } : null,
+            },
+            custom_message: reminderMessage || "Olá! Este é um lembrete do seu agendamento.",
+          };
+
+          await fetch(webhookUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(reminderPayload),
+          });
+
+          sent++;
+        } catch (err) {
+          console.error("Erro ao enviar lembrete:", err);
+        }
+      }
+
+      toast({
+        title: `✅ ${sent} lembrete(s) enviado(s)!`,
+        description: "Os lembretes foram enviados para o n8n.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao enviar lembretes",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <AppLayout>
@@ -350,6 +457,96 @@ const Config = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Lembretes Automáticos
+            </CardTitle>
+            <CardDescription>
+              Configure quando você quer ser notificado antes dos agendamentos
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="reminder-message">Mensagem do Lembrete</Label>
+                <Textarea
+                  id="reminder-message"
+                  placeholder="Escreva a mensagem que será enviada como lembrete..."
+                  value={reminderMessage}
+                  onChange={(e) => setReminderMessage(e.target.value)}
+                  rows={4}
+                  className="resize-none"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Esta mensagem será enviada aos clientes nos horários selecionados abaixo.
+                  Você pode incluir informações como nome do serviço, data e horário.
+                </p>
+              </div>
+
+              <Label>Enviar lembrete:</Label>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="reminder-30"
+                    checked={reminders.includes(30)}
+                    onCheckedChange={() => toggleReminder(30)}
+                  />
+                  <label htmlFor="reminder-30" className="text-sm cursor-pointer">
+                    30 minutos antes
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="reminder-15"
+                    checked={reminders.includes(15)}
+                    onCheckedChange={() => toggleReminder(15)}
+                  />
+                  <label htmlFor="reminder-15" className="text-sm cursor-pointer">
+                    15 minutos antes
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="reminder-60"
+                    checked={reminders.includes(60)}
+                    onCheckedChange={() => toggleReminder(60)}
+                  />
+                  <label htmlFor="reminder-60" className="text-sm cursor-pointer">
+                    1 hora antes
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="reminder-1440"
+                    checked={reminders.includes(1440)}
+                    onCheckedChange={() => toggleReminder(1440)}
+                  />
+                  <label htmlFor="reminder-1440" className="text-sm cursor-pointer">
+                    1 dia antes
+                  </label>
+                </div>
+              </div>
+              <Button onClick={saveReminders} disabled={saving} className="w-full">
+                <Check className="h-4 w-4 mr-2" />
+                Salvar Configurações de Lembrete
+              </Button>
+              <Button 
+                onClick={sendRemindersNow} 
+                variant="outline" 
+                className="w-full"
+                disabled={saving || !webhookUrl}
+              >
+                📲 Enviar Lembretes Agora
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Envia lembretes para os próximos agendamentos confirmados via webhook n8n
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
               <Webhook className="h-5 w-5" />
               Integração Webhook n8n
             </CardTitle>
@@ -385,88 +582,6 @@ const Config = () => {
               >
                 🧪 Testar Webhook
               </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5" />
-              Lembretes Automáticos
-            </CardTitle>
-            <CardDescription>
-              Configure quando você quer ser notificado antes dos agendamentos
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="reminder-message">Mensagem do Lembrete</Label>
-                <Textarea
-                  id="reminder-message"
-                  placeholder="Escreva a mensagem que será enviada como lembrete..."
-                  value={reminderMessage}
-                  onChange={(e) => setReminderMessage(e.target.value)}
-                  rows={4}
-                  className="resize-none"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Esta mensagem será enviada aos clientes nos horários selecionados abaixo.
-                  Você pode incluir informações como nome do serviço, data e horário.
-                </p>
-              </div>
-
-              <Label>Enviar lembrete:</Label>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="reminder-15"
-                    checked={reminders.includes(15)}
-                    onCheckedChange={() => toggleReminder(15)}
-                  />
-                  <label htmlFor="reminder-15" className="text-sm cursor-pointer">
-                    15 minutos antes
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="reminder-30"
-                    checked={reminders.includes(30)}
-                    onCheckedChange={() => toggleReminder(30)}
-                  />
-                  <label htmlFor="reminder-30" className="text-sm cursor-pointer">
-                    30 minutos antes
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="reminder-60"
-                    checked={reminders.includes(60)}
-                    onCheckedChange={() => toggleReminder(60)}
-                  />
-                  <label htmlFor="reminder-60" className="text-sm cursor-pointer">
-                    1 hora antes
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="reminder-1440"
-                    checked={reminders.includes(1440)}
-                    onCheckedChange={() => toggleReminder(1440)}
-                  />
-                  <label htmlFor="reminder-1440" className="text-sm cursor-pointer">
-                    1 dia antes
-                  </label>
-                </div>
-              </div>
-              <Button onClick={saveReminders} disabled={saving} className="w-full">
-                <Check className="h-4 w-4 mr-2" />
-                Salvar Configurações de Lembrete
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                Os lembretes serão enviados via webhook n8n (configure a URL acima)
-              </p>
             </div>
           </CardContent>
         </Card>
