@@ -81,7 +81,7 @@ const Dashboard = () => {
               <p className="text-sm text-muted-foreground mb-4">
                 Visualize todos os seus agendamentos
               </p>
-              <Button variant="outline">Ver agendamentos</Button>
+              <Button variant="outline" onClick={() => navigate("/bookings")}>Ver agendamentos</Button>
             </div>
           </div>
         </div>

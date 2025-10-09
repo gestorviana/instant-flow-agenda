@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Settings, ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 import type { Agenda } from "@/types/database";
 
 interface AgendaCardProps {
@@ -11,6 +12,7 @@ interface AgendaCardProps {
 
 export const AgendaCard = ({ agenda, onUpdate }: AgendaCardProps) => {
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   return (
     <div className="p-6 border rounded-lg hover:shadow-md transition-shadow">
@@ -38,9 +40,21 @@ export const AgendaCard = ({ agenda, onUpdate }: AgendaCardProps) => {
           <Settings className="mr-2 h-4 w-4" />
           Configurar
         </Button>
-        <Button variant="outline" size="sm" className="flex-1">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="flex-1"
+          onClick={() => {
+            const url = `${window.location.origin}/agendar/${agenda.slug}`;
+            navigator.clipboard.writeText(url);
+            toast({
+              title: "Link copiado!",
+              description: "O link foi copiado para a área de transferência.",
+            });
+          }}
+        >
           <ExternalLink className="mr-2 h-4 w-4" />
-          Ver link
+          Copiar link
         </Button>
       </div>
     </div>

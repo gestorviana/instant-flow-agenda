@@ -8,7 +8,6 @@ import type { User } from "@supabase/supabase-js";
 import type { Agenda, Availability } from "@/types/database";
 import { AvailabilityForm } from "@/components/availability/AvailabilityForm";
 import { AvailabilityList } from "@/components/availability/AvailabilityList";
-import { LunchBreakConfig } from "@/components/availability/LunchBreakConfig";
 
 const AgendaConfig = () => {
   const { id } = useParams();
@@ -155,8 +154,6 @@ const AgendaConfig = () => {
               availability={availability}
               onUpdate={loadAvailability}
             />
-
-            <LunchBreakConfig agenda={agenda} onUpdate={loadAgenda} />
           </div>
         </div>
       </main>
