@@ -132,8 +132,6 @@ const AgendaConfig = () => {
           </div>
 
           <div className="space-y-6">
-            <LunchBreakConfig agenda={agenda} onUpdate={loadAgenda} />
-
             {showForm ? (
               <AvailabilityForm
                 agendaId={id!}
@@ -157,6 +155,8 @@ const AgendaConfig = () => {
               availability={availability}
               onUpdate={loadAvailability}
             />
+
+            <LunchBreakConfig agenda={agenda} onUpdate={loadAgenda} />
           </div>
         </div>
       </main>
