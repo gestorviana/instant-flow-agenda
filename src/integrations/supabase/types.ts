@@ -107,6 +107,7 @@ export type Database = {
           guest_phone: string | null
           id: string
           notes: string | null
+          service_id: string | null
           start_time: string
           status: string | null
           updated_at: string | null
@@ -121,6 +122,7 @@ export type Database = {
           guest_phone?: string | null
           id?: string
           notes?: string | null
+          service_id?: string | null
           start_time: string
           status?: string | null
           updated_at?: string | null
@@ -135,6 +137,7 @@ export type Database = {
           guest_phone?: string | null
           id?: string
           notes?: string | null
+          service_id?: string | null
           start_time?: string
           status?: string | null
           updated_at?: string | null
@@ -147,7 +150,44 @@ export type Database = {
             referencedRelation: "agendas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bookings_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      expenses: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string | null
+          date: string
+          description: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          category: string
+          created_at?: string | null
+          date: string
+          description: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string | null
+          date?: string
+          description?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -157,6 +197,7 @@ export type Database = {
           full_name: string | null
           id: string
           phone: string | null
+          photo_url: string | null
           updated_at: string | null
         }
         Insert: {
@@ -166,6 +207,7 @@ export type Database = {
           full_name?: string | null
           id: string
           phone?: string | null
+          photo_url?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -175,7 +217,80 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone?: string | null
+          photo_url?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      services: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          description: string | null
+          duration_minutes: number
+          id: string
+          name: string
+          price: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          description?: string | null
+          duration_minutes: number
+          id?: string
+          name: string
+          price: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          name?: string
+          price?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          created_at: string | null
+          id: string
+          lunch_break: Json | null
+          reminders_minutes: number[] | null
+          temp_blocks: Json | null
+          updated_at: string | null
+          user_id: string
+          webhook_url: string | null
+          work_days: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          lunch_break?: Json | null
+          reminders_minutes?: number[] | null
+          temp_blocks?: Json | null
+          updated_at?: string | null
+          user_id: string
+          webhook_url?: string | null
+          work_days?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          lunch_break?: Json | null
+          reminders_minutes?: number[] | null
+          temp_blocks?: Json | null
+          updated_at?: string | null
+          user_id?: string
+          webhook_url?: string | null
+          work_days?: Json | null
         }
         Relationships: []
       }

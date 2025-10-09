@@ -11,6 +11,9 @@ import Agendas from "./pages/Agendas";
 import AgendaConfig from "./pages/AgendaConfig";
 import PublicBooking from "./pages/PublicBooking";
 import Bookings from "./pages/Bookings";
+import Services from "./pages/Services";
+import Financial from "./pages/Financial";
+import Config from "./pages/Config";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +29,9 @@ const App = () => (
           <Route path="/agendas" element={<Agendas />} />
           <Route path="/agendas/:id/config" element={<AgendaConfig />} />
           <Route path="/bookings" element={<Bookings />} />
+          <Route path="/servicos" element={<Services />} />
+          <Route path="/financeiro" element={<Financial />} />
+          <Route path="/config" element={<Config />} />
           <Route path="/agendar/:slug" element={<PublicBooking />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
