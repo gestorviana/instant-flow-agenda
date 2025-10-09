@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import type { AgendaInsert } from "@/types/database";
 
 interface CreateAgendaDialogProps {
   open: boolean;
@@ -48,12 +49,14 @@ export const CreateAgendaDialog = ({
 
       const slug = generateSlug(title);
 
-      const { error } = await supabase.from("agendas").insert({
+      const agendaData: AgendaInsert = {
         title,
         description: description || null,
         slug,
         user_id: user.id,
-      });
+      };
+
+      const { error } = await (supabase as any).from("agendas").insert(agendaData);
 
       if (error) throw error;
 

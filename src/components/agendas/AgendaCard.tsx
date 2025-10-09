@@ -1,16 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Settings, ExternalLink } from "lucide-react";
+import { Settings, ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-interface Agenda {
-  id: string;
-  title: string;
-  description: string | null;
-  slug: string;
-  is_active: boolean;
-  created_at: string;
-}
+import type { Agenda } from "@/types/database";
 
 interface AgendaCardProps {
   agenda: Agenda;

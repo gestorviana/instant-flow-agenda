@@ -3,19 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar, Settings } from "lucide-react";
+import { Plus, Calendar } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { CreateAgendaDialog } from "@/components/agendas/CreateAgendaDialog";
 import { AgendaCard } from "@/components/agendas/AgendaCard";
-
-interface Agenda {
-  id: string;
-  title: string;
-  description: string | null;
-  slug: string;
-  is_active: boolean;
-  created_at: string;
-}
+import type { Agenda } from "@/types/database";
 
 const Agendas = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -51,7 +43,7 @@ const Agendas = () => {
 
   const loadAgendas = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("agendas")
         .select("*")
         .order("created_at", { ascending: false });
