@@ -364,8 +364,12 @@ const PublicBooking = () => {
                     onClick={() => {
                       if (isSelected) {
                         setSelectedServices(selectedServices.filter(s => s.id !== service.id));
+                        setSelectedDate(undefined);
+                        setSelectedTime("");
                       } else if (canSelect) {
                         setSelectedServices([...selectedServices, service]);
+                        setSelectedDate(undefined);
+                        setSelectedTime("");
                       }
                     }}
                     disabled={!isSelected && !canSelect}
@@ -401,15 +405,15 @@ const PublicBooking = () => {
               })}
             </div>
             {selectedServices.length > 0 && (
-              <div className="mt-4 pt-4 border-t">
+              <div className="mt-4 pt-4 border-t bg-accent/50 -mx-6 -mb-6 px-6 py-4 rounded-b-2xl">
                 <div className="flex justify-between items-center">
-                  <span className="font-semibold">Duração total:</span>
-                  <span className="text-muted-foreground">
-                    {selectedServices.reduce((total, s) => total + s.duration_minutes, 0)} minutos
+                  <span className="font-semibold">⏱️ Duração total:</span>
+                  <span className="font-bold text-lg">
+                    {selectedServices.reduce((total, s) => total + s.duration_minutes, 0)} min
                   </span>
                 </div>
                 <div className="flex justify-between items-center mt-2">
-                  <span className="font-semibold">Total:</span>
+                  <span className="font-semibold">💰 Total:</span>
                   <span className="text-xl font-bold text-primary">
                     R$ {selectedServices.reduce((total, s) => total + Number(s.price), 0).toFixed(2)}
                   </span>
