@@ -12,7 +12,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Camera, Copy, Webhook, Bell, Check } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import DownloadN8nFlows from "@/components/DownloadN8nFlows";
 
 const Config = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -577,18 +576,6 @@ const Config = () => {
                 🧪 Testar Webhook
               </Button>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Download dos Fluxos n8n</CardTitle>
-            <CardDescription>
-              Baixe os fluxos n8n prontos para importar
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DownloadN8nFlows />
           </CardContent>
         </Card>
       </div>
