@@ -451,8 +451,11 @@ const PublicBooking = () => {
               </div>
             </div>
             <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-              {profile?.full_name || agenda.title}
+              Agende seu Horário
             </h1>
+            <p className="text-xl font-semibold text-foreground/80">
+              com {profile?.full_name || agenda.title}
+            </p>
             {agenda.description && (
               <p className="text-lg text-muted-foreground max-w-md mx-auto">{agenda.description}</p>
             )}
