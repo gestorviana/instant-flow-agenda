@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar as CalendarIcon, Clock, CheckCircle } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Agenda, Availability, Service } from "@/types/database";
 import { format, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -15,6 +16,7 @@ import { ptBR } from "date-fns/locale";
 const PublicBooking = () => {
   const { slug } = useParams();
   const [agenda, setAgenda] = useState<Agenda | null>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [availability, setAvailability] = useState<Availability[]>([]);
@@ -41,6 +43,7 @@ const PublicBooking = () => {
     if (agenda) {
       loadAvailability();
       loadServices();
+      loadProfile();
     }
   }, [agenda]);
 
@@ -110,6 +113,21 @@ const PublicBooking = () => {
       setServices(data || []);
     } catch (error: any) {
       console.error("Erro ao carregar serviços:", error);
+    }
+  };
+
+  const loadProfile = async () => {
+    try {
+      const { data, error } = await (supabase as any)
+        .from("profiles")
+        .select("*")
+        .eq("id", agenda!.user_id)
+        .maybeSingle();
+
+      if (error) throw error;
+      setProfile(data);
+    } catch (error: any) {
+      console.error("Erro ao carregar perfil:", error);
     }
   };
 
@@ -191,7 +209,27 @@ const PublicBooking = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedDate || !selectedTime || !agenda || selectedServices.length === 0) return;
+    
+    console.log("=== INICIANDO AGENDAMENTO ===");
+    console.log("Data selecionada:", selectedDate);
+    console.log("Horário selecionado:", selectedTime);
+    console.log("Serviços selecionados:", selectedServices);
+    console.log("Dados do formulário:", formData);
+    
+    if (!selectedDate || !selectedTime || !agenda || selectedServices.length === 0) {
+      console.error("Validação falhou:", {
+        selectedDate: !!selectedDate,
+        selectedTime: !!selectedTime,
+        agenda: !!agenda,
+        servicesLength: selectedServices.length
+      });
+      toast({
+        title: "Dados incompletos",
+        description: "Por favor, preencha todos os campos.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setSubmitting(true);
 
@@ -203,6 +241,12 @@ const PublicBooking = () => {
       const endMin = totalMinutes % 60;
       const endTime = `${endHour.toString().padStart(2, "0")}:${endMin.toString().padStart(2, "0")}`;
 
+      console.log("Calculando horários:", {
+        totalDuration,
+        startTime: selectedTime,
+        endTime
+      });
+
       // Criar um booking para cada serviço selecionado
       const bookingPromises = selectedServices.map(async (service, index) => {
         const serviceStartMinutes = hour * 60 + min + (index > 0 ? selectedServices.slice(0, index).reduce((sum, s) => sum + s.duration_minutes, 0) : 0);
@@ -212,51 +256,65 @@ const PublicBooking = () => {
         const serviceEndHour = Math.floor(serviceEndMinutes / 60);
         const serviceEndMin = serviceEndMinutes % 60;
         
+        const bookingData = {
+          agenda_id: agenda.id,
+          booking_date: format(selectedDate, "yyyy-MM-dd"),
+          start_time: `${serviceStartHour.toString().padStart(2, "0")}:${serviceStartMin.toString().padStart(2, "0")}`,
+          end_time: `${serviceEndHour.toString().padStart(2, "0")}:${serviceEndMin.toString().padStart(2, "0")}`,
+          guest_name: formData.name,
+          guest_email: formData.email,
+          guest_phone: formData.phone,
+          service_id: service.id,
+          status: "pending",
+        };
+        
+        console.log(`Criando booking ${index + 1}:`, bookingData);
+        
         return (supabase as any)
           .from("bookings")
-          .insert({
-            agenda_id: agenda.id,
-            booking_date: format(selectedDate, "yyyy-MM-dd"),
-            start_time: `${serviceStartHour.toString().padStart(2, "0")}:${serviceStartMin.toString().padStart(2, "0")}`,
-            end_time: `${serviceEndHour.toString().padStart(2, "0")}:${serviceEndMin.toString().padStart(2, "0")}`,
-            guest_name: formData.name,
-            guest_email: formData.email,
-            guest_phone: formData.phone,
-            service_id: service.id,
-            status: "pending",
-          })
+          .insert(bookingData)
           .select()
           .single();
       });
 
       const bookingResults = await Promise.all(bookingPromises);
+      console.log("Resultados dos bookings:", bookingResults);
+      
       const firstBookingError = bookingResults.find(result => result.error);
-      if (firstBookingError?.error) throw firstBookingError.error;
+      if (firstBookingError?.error) {
+        console.error("Erro ao criar booking:", firstBookingError.error);
+        throw firstBookingError.error;
+      }
 
       const bookingData = bookingResults[0].data;
+      console.log("Primeiro booking criado:", bookingData);
 
       // Notificar via webhook sobre novo agendamento
       try {
+        console.log("Enviando notificação webhook...");
         await supabase.functions.invoke("notify-booking", {
           body: {
             booking_id: bookingData.id,
             event_type: "created",
           },
         });
+        console.log("Webhook enviado com sucesso");
       } catch (webhookError) {
         console.error("Erro ao enviar webhook:", webhookError);
         // Não bloqueia o agendamento se o webhook falhar
       }
 
       setSuccess(true);
+      console.log("=== AGENDAMENTO CONCLUÍDO COM SUCESSO ===");
       toast({
         title: "Agendamento realizado!",
         description: "Você receberá uma confirmação em breve.",
       });
     } catch (error: any) {
+      console.error("=== ERRO NO AGENDAMENTO ===", error);
       toast({
         title: "Erro ao agendar",
-        description: error.message,
+        description: error.message || "Ocorreu um erro ao processar seu agendamento.",
         variant: "destructive",
       });
     } finally {
@@ -321,11 +379,24 @@ const PublicBooking = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* Header with Professional Photo */}
       <div className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-background to-accent/10 border-b">
         <div className="absolute inset-0 bg-grid-white/5 [mask-image:linear-gradient(0deg,white,transparent)]" />
         <div className="max-w-2xl mx-auto px-4 py-12 relative">
           <div className="text-center space-y-4 animate-fade-in">
+            {profile?.photo_url && (
+              <div className="flex justify-center mb-6">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl" />
+                  <Avatar className="h-24 w-24 border-4 border-background shadow-2xl relative">
+                    <AvatarImage src={profile.photo_url} alt={profile.full_name || agenda.title} />
+                    <AvatarFallback className="text-2xl font-bold">
+                      {(profile.full_name || agenda.title).substring(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+              </div>
+            )}
             <div className="inline-block">
               <div className="flex items-center gap-2 text-primary mb-2">
                 <div className="h-px w-8 bg-primary/50" />
@@ -334,7 +405,7 @@ const PublicBooking = () => {
               </div>
             </div>
             <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-              Reserve seu Horário
+              {profile?.full_name || agenda.title}
             </h1>
             {agenda.description && (
               <p className="text-lg text-muted-foreground max-w-md mx-auto">{agenda.description}</p>

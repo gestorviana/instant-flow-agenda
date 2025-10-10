@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Camera, Copy, Webhook, Bell, Check } from "lucide-react";
+import { Camera, Copy, Webhook, Bell, Check, Calendar as CalendarIcon } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { AgendaCalendarView } from "@/components/agendas/AgendaCalendarView";
 
 const Config = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -576,6 +577,22 @@ const Config = () => {
                 🧪 Testar Webhook
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Agendamentos do Dia e da Semana */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5" />
+              Agendamentos
+            </CardTitle>
+            <CardDescription>
+              Visualize e gerencie seus agendamentos de hoje e da semana
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AgendaCalendarView userId={user?.id || ""} />
           </CardContent>
         </Card>
       </div>
