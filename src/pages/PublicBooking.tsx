@@ -57,23 +57,35 @@ const PublicBooking = () => {
 
   const loadAgenda = async () => {
     try {
+      console.log("=== CARREGANDO AGENDA ===");
+      console.log("Slug recebido:", slug);
+      
       if (!slug) {
         throw new Error("Slug inválido");
       }
 
-      const { data, error } = await (supabase as any)
+      console.log("Buscando agenda com slug:", slug);
+      
+      const { data, error } = await supabase
         .from("agendas")
         .select("*")
         .eq("slug", slug)
         .eq("is_active", true)
         .maybeSingle();
 
-      if (error) throw error;
+      console.log("Resultado da busca:", { data, error });
+
+      if (error) {
+        console.error("Erro na query:", error);
+        throw error;
+      }
       
       if (!data) {
+        console.error("Nenhuma agenda encontrada com slug:", slug);
         throw new Error("Agenda não encontrada");
       }
       
+      console.log("Agenda carregada com sucesso:", data);
       setAgenda(data);
     } catch (error: any) {
       console.error("Erro ao carregar agenda:", error);
@@ -118,14 +130,26 @@ const PublicBooking = () => {
 
   const loadProfile = async () => {
     try {
-      const { data, error } = await (supabase as any)
+      console.log("=== CARREGANDO PERFIL ===");
+      console.log("User ID da agenda:", agenda!.user_id);
+      
+      const { data, error } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", agenda!.user_id)
         .maybeSingle();
 
-      if (error) throw error;
-      setProfile(data);
+      console.log("Perfil carregado:", { data, error });
+
+      if (error) {
+        console.error("Erro ao carregar perfil:", error);
+        throw error;
+      }
+      
+      if (data) {
+        console.log("Foto do perfil:", data.photo_url);
+        setProfile(data);
+      }
     } catch (error: any) {
       console.error("Erro ao carregar perfil:", error);
     }
@@ -384,19 +408,20 @@ const PublicBooking = () => {
         <div className="absolute inset-0 bg-grid-white/5 [mask-image:linear-gradient(0deg,white,transparent)]" />
         <div className="max-w-2xl mx-auto px-4 py-12 relative">
           <div className="text-center space-y-4 animate-fade-in">
-            {profile?.photo_url && (
-              <div className="flex justify-center mb-6">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl" />
-                  <Avatar className="h-24 w-24 border-4 border-background shadow-2xl relative">
+            {/* Avatar sempre visível */}
+            <div className="flex justify-center mb-6">
+              <div className="relative">
+                <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl" />
+                <Avatar className="h-24 w-24 border-4 border-background shadow-2xl relative">
+                  {profile?.photo_url ? (
                     <AvatarImage src={profile.photo_url} alt={profile.full_name || agenda.title} />
-                    <AvatarFallback className="text-2xl font-bold">
-                      {(profile.full_name || agenda.title).substring(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
+                  ) : null}
+                  <AvatarFallback className="text-2xl font-bold bg-primary text-primary-foreground">
+                    {(profile?.full_name || agenda.title).substring(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
               </div>
-            )}
+            </div>
             <div className="inline-block">
               <div className="flex items-center gap-2 text-primary mb-2">
                 <div className="h-px w-8 bg-primary/50" />
