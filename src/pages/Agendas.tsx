@@ -3,12 +3,15 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar } from "lucide-react";
+import { Plus, Calendar, Settings } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { CreateAgendaDialog } from "@/components/agendas/CreateAgendaDialog";
 import { AgendaCard } from "@/components/agendas/AgendaCard";
 import type { Agenda } from "@/types/database";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AgendaCalendarView } from "@/components/agendas/AgendaCalendarView";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 const Agendas = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -76,41 +79,74 @@ const Agendas = () => {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h2 className="text-2xl font-bold">Minhas Agendas</h2>
+            <h2 className="text-2xl font-bold">Agendamentos</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Gerencie suas agendas de atendimento
+              Visualize seus agendamentos e gerencie suas agendas
             </p>
           </div>
-          <Button 
-            onClick={() => setCreateDialogOpen(true)}
-            size="lg"
-            className="rounded-full"
-          >
-            <Plus className="h-5 w-5" />
-          </Button>
         </div>
 
         {agendas.length === 0 ? (
-          <div className="text-center py-16">
-            <Calendar className="mx-auto h-16 w-16 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Nenhuma agenda criada</h3>
-            <p className="text-sm text-muted-foreground mb-6">
-              Crie sua primeira agenda para começar
-            </p>
-            <Button 
-              onClick={() => setCreateDialogOpen(true)}
-              size="lg"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Criar primeira agenda
-            </Button>
-          </div>
+          <Card>
+            <CardContent className="py-16 text-center">
+              <Calendar className="mx-auto h-16 w-16 text-muted-foreground/50 mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Nenhuma agenda criada</h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Crie sua primeira agenda para começar a receber agendamentos
+              </p>
+              <Button 
+                onClick={() => setCreateDialogOpen(true)}
+                size="lg"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Criar primeira agenda
+              </Button>
+            </CardContent>
+          </Card>
         ) : (
-          <div className="grid gap-4">
-            {agendas.map((agenda) => (
-              <AgendaCard key={agenda.id} agenda={agenda} onUpdate={loadAgendas} />
-            ))}
-          </div>
+          <Tabs defaultValue="bookings" className="w-full">
+            <TabsList className="grid w-full max-w-md grid-cols-2 mb-6">
+              <TabsTrigger value="bookings" className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Agendamentos
+              </TabsTrigger>
+              <TabsTrigger value="config" className="flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                Configurações
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="bookings">
+              <AgendaCalendarView userId={user?.id || ""} />
+            </TabsContent>
+
+            <TabsContent value="config">
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Minhas Agendas</CardTitle>
+                    <CardDescription>
+                      Gerencie suas agendas de atendimento
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <Button 
+                      onClick={() => setCreateDialogOpen(true)}
+                      className="w-full"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Criar nova agenda
+                    </Button>
+                    <div className="space-y-3">
+                      {agendas.map((agenda) => (
+                        <AgendaCard key={agenda.id} agenda={agenda} onUpdate={loadAgendas} />
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+          </Tabs>
         )}
       </div>
 
