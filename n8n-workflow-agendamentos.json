@@ -1,0 +1,259 @@
+{
+  "name": "Agendamentos - Lembretes e Notificações",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "Encha-Letty",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-receive",
+      "name": "Webhook Recebe Agendamento",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "encha-letty-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normaliza os dados do agendamento\nconst data = $input.item.json;\n\nreturn {\n  booking_id: data.booking_id || data.id,\n  guest_name: data.booking?.guest_name || data.guest_name,\n  guest_phone: data.booking?.guest_phone || data.guest_phone,\n  booking_date: data.booking?.booking_date || data.booking_date,\n  start_time: data.booking?.start_time || data.start_time,\n  end_time: data.booking?.end_time || data.end_time,\n  service_name: data.booking?.services?.name || data.service_name || 'Serviço',\n  service_duration: data.booking?.services?.duration_minutes || data.duration_minutes || 60,\n  agenda_title: data.booking?.agendas?.title || data.agenda_title || 'Agendamento',\n  event_type: data.event_type || 'new_booking',\n  reminder_message: data.settings?.reminder_message || 'Olá! Este é um lembrete do seu agendamento.',\n  instance: {\n    Server_url: 'https://webhook.gestorviana.com',\n    Name: 'encha-letty',\n    ApiKey: '4AB355A97A0C-4F79-A3E3-77E3C1306E27'\n  }\n};"
+      },
+      "id": "normaliza-dados",
+      "name": "Normaliza",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "confirmed",
+              "leftValue": "={{ $json.event_type }}",
+              "rightValue": "booking_confirmed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "cancelled",
+              "leftValue": "={{ $json.event_type }}",
+              "rightValue": "booking_cancelled",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "reminder",
+              "leftValue": "={{ $json.event_type }}",
+              "rightValue": "reminder",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "verifica-tipo-evento",
+      "name": "Verifica Tipo de Evento",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mensagem de confirmação\nconst data = $input.item.json;\n\nconst phone = data.guest_phone.replace(/\\D/g, '');\nconst date = new Date(data.booking_date).toLocaleDateString('pt-BR');\nconst time = data.start_time.substring(0, 5);\n\nconst message = `✅ *Agendamento Confirmado!*\\n\\n` +\n  `Olá ${data.guest_name}! 👋\\n\\n` +\n  `Seu agendamento foi *confirmado* com sucesso!\\n\\n` +\n  `📋 *Detalhes:*\\n` +\n  `📅 Data: ${date}\\n` +\n  `🕐 Horário: ${time}\\n` +\n  `💼 Serviço: ${data.service_name}\\n` +\n  `⏱️ Duração: ${data.service_duration} minutos\\n\\n` +\n  `Aguardamos você! 😊`;\n\nreturn {\n  phone: phone,\n  message: message,\n  instance: data.instance\n};"
+      },
+      "id": "mensagem-confirmacao",
+      "name": "Mensagem Confirmação",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mensagem de cancelamento\nconst data = $input.item.json;\n\nconst phone = data.guest_phone.replace(/\\D/g, '');\nconst date = new Date(data.booking_date).toLocaleDateString('pt-BR');\nconst time = data.start_time.substring(0, 5);\n\nconst message = `❌ *Agendamento Cancelado*\\n\\n` +\n  `Olá ${data.guest_name},\\n\\n` +\n  `Seu agendamento foi *cancelado*.\\n\\n` +\n  `📋 *Detalhes do agendamento cancelado:*\\n` +\n  `📅 Data: ${date}\\n` +\n  `🕐 Horário: ${time}\\n` +\n  `💼 Serviço: ${data.service_name}\\n\\n` +\n  `Se desejar reagendar, entre em contato conosco.`;\n\nreturn {\n  phone: phone,\n  message: message,\n  instance: data.instance\n};"
+      },
+      "id": "mensagem-cancelamento",
+      "name": "Mensagem Cancelamento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mensagem de lembrete\nconst data = $input.item.json;\n\nconst phone = data.guest_phone.replace(/\\D/g, '');\nconst date = new Date(data.booking_date).toLocaleDateString('pt-BR');\nconst time = data.start_time.substring(0, 5);\n\nconst message = `⏰ *Lembrete de Agendamento*\\n\\n` +\n  `${data.reminder_message}\\n\\n` +\n  `Olá ${data.guest_name}! 👋\\n\\n` +\n  `📋 *Detalhes do seu agendamento:*\\n` +\n  `📅 Data: ${date}\\n` +\n  `🕐 Horário: ${time}\\n` +\n  `💼 Serviço: ${data.service_name}\\n` +\n  `⏱️ Duração: ${data.service_duration} minutos\\n\\n` +\n  `Até breve! 😊`;\n\nreturn {\n  phone: phone,\n  message: message,\n  instance: data.instance\n};"
+      },
+      "id": "mensagem-lembrete",
+      "name": "Mensagem Lembrete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.instance.Server_url }}/message/sendText/{{ $json.instance.Name }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $json.instance.ApiKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "envia-whatsapp",
+      "name": "Envia WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"Mensagem enviada com sucesso\", \"booking_id\": $('Normaliza').item.json.booking_id } }}"
+      },
+      "id": "responde-webhook",
+      "name": "Responde Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Recebe Agendamento": {
+      "main": [
+        [
+          {
+            "node": "Normaliza",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normaliza": {
+      "main": [
+        [
+          {
+            "node": "Verifica Tipo de Evento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verifica Tipo de Evento": {
+      "main": [
+        [
+          {
+            "node": "Mensagem Confirmação",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mensagem Cancelamento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mensagem Lembrete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem Confirmação": {
+      "main": [
+        [
+          {
+            "node": "Envia WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem Cancelamento": {
+      "main": [
+        [
+          {
+            "node": "Envia WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem Lembrete": {
+      "main": [
+        [
+          {
+            "node": "Envia WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envia WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Responde Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-10T00:00:00.000Z",
+  "versionId": "1"
+}
