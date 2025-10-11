@@ -309,6 +309,10 @@ const PublicBooking = () => {
         endTime
       });
 
+      console.log("🔐 Verificando autenticação...");
+      const { data: sessionData } = await supabase.auth.getSession();
+      console.log("📝 Sessão atual:", sessionData.session ? "Autenticado" : "Anônimo (correto para booking público)");
+      
       // Criar um booking para cada serviço selecionado
       const bookingPromises = selectedServices.map(async (service, index) => {
         const serviceStartMinutes = hour * 60 + min + (index > 0 ? selectedServices.slice(0, index).reduce((sum, s) => sum + s.duration_minutes, 0) : 0);
@@ -341,9 +345,14 @@ const PublicBooking = () => {
           .select()
           .single();
         
+        // Log detalhado do resultado
         console.log(`📊 Result for booking ${index + 1}:`, {
           success: !result.error,
-          error: result.error,
+          errorCode: result.error?.code,
+          errorMessage: result.error?.message,
+          errorDetails: result.error?.details,
+          errorHint: result.error?.hint,
+          errorFull: result.error,
           data: result.data
         });
         
