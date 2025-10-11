@@ -26,12 +26,10 @@ const bookingSchema = z.object({
     .max(255, "Email muito longo"),
   phone: z.string()
     .trim()
-    .regex(/^\+?[1-9]\d{1,14}$/, "Telefone inválido (use formato internacional)")
+    .min(8, "Telefone muito curto")
+    .max(20, "Telefone muito longo")
     .optional()
-    .or(z.literal("")),
-  notes: z.string()
-    .max(1000, "Observações muito longas")
-    .optional()
+    .or(z.literal(""))
 });
 
 const PublicBooking = () => {
