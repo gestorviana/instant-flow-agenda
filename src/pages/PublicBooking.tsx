@@ -17,19 +17,16 @@ import { z } from "zod";
 // Validation schema for booking form
 const bookingSchema = z.object({
   name: z.string()
-    .trim()
+    .min(1, "Nome é obrigatório")
     .min(2, "Nome deve ter pelo menos 2 caracteres")
     .max(100, "Nome muito longo"),
   email: z.string()
-    .trim()
+    .min(1, "Email é obrigatório")
     .email("Email inválido")
     .max(255, "Email muito longo"),
   phone: z.string()
-    .trim()
     .min(8, "Telefone muito curto")
     .max(20, "Telefone muito longo")
-    .optional()
-    .or(z.literal(""))
 });
 
 const PublicBooking = () => {
@@ -275,15 +272,17 @@ const PublicBooking = () => {
     }
 
     // Validate form data with Zod schema
+    console.log("📋 Dados do formulário ANTES da validação:", formData);
+    
     const validation = bookingSchema.safeParse({
-      name: formData.name,
-      email: formData.email,
-      phone: formData.phone
+      name: formData.name.trim(),
+      email: formData.email.trim(),
+      phone: formData.phone.trim()
     });
 
     if (!validation.success) {
       const errorMessage = validation.error.errors[0]?.message || "Dados inválidos";
-      console.error("Validação Zod falhou:", validation.error.errors);
+      console.error("❌ Validação Zod falhou:", validation.error.errors);
       toast({
         title: "Dados inválidos",
         description: errorMessage,
@@ -291,6 +290,8 @@ const PublicBooking = () => {
       });
       return;
     }
+    
+    console.log("✅ Validação passou! Dados validados:", validation.data);
 
     setSubmitting(true);
 
@@ -322,14 +323,15 @@ const PublicBooking = () => {
           booking_date: format(selectedDate, "yyyy-MM-dd"),
           start_time: `${serviceStartHour.toString().padStart(2, "0")}:${serviceStartMin.toString().padStart(2, "0")}`,
           end_time: `${serviceEndHour.toString().padStart(2, "0")}:${serviceEndMin.toString().padStart(2, "0")}`,
-          guest_name: formData.name,
-          guest_email: formData.email,
-          guest_phone: formData.phone,
+          guest_name: validation.data.name,
+          guest_email: validation.data.email,
+          guest_phone: validation.data.phone,
           service_id: service.id,
           status: "pending",
         };
         
-        console.log(`Criando booking ${index + 1}:`, bookingData);
+        console.log(`📝 Criando booking ${index + 1}:`, bookingData);
+        console.log(`📧 Email sendo enviado: "${bookingData.guest_email}"`);
         
         return (supabase as any)
           .from("bookings")
