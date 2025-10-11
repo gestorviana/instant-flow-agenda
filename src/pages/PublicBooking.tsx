@@ -343,8 +343,18 @@ const PublicBooking = () => {
       
       const firstBookingError = bookingResults.find(result => result.error);
       if (firstBookingError?.error) {
-        console.error("Erro ao criar booking:", firstBookingError.error);
-        throw firstBookingError.error;
+        console.error("❌ ERRO COMPLETO ao criar booking:", JSON.stringify(firstBookingError.error, null, 2));
+        console.error("Código do erro:", firstBookingError.error.code);
+        console.error("Mensagem do erro:", firstBookingError.error.message);
+        console.error("Detalhes do erro:", firstBookingError.error.details);
+        
+        toast({
+          title: "Erro ao criar agendamento",
+          description: firstBookingError.error.message || "Erro desconhecido. Tente novamente.",
+          variant: "destructive",
+        });
+        setSubmitting(false);
+        return;
       }
 
       const bookingData = bookingResults[0].data;
