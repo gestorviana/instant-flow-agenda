@@ -332,12 +332,22 @@ const PublicBooking = () => {
         
         console.log(`📝 Criando booking ${index + 1}:`, bookingData);
         console.log(`📧 Email sendo enviado: "${bookingData.guest_email}"`);
+        console.log(`🔑 Supabase URL:`, import.meta.env.VITE_SUPABASE_URL);
+        console.log(`🔑 Using anon key:`, import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.substring(0, 20) + '...');
         
-        return (supabase as any)
+        const result = await supabase
           .from("bookings")
           .insert(bookingData)
           .select()
           .single();
+        
+        console.log(`📊 Result for booking ${index + 1}:`, {
+          success: !result.error,
+          error: result.error,
+          data: result.data
+        });
+        
+        return result;
       });
 
       const bookingResults = await Promise.all(bookingPromises);
