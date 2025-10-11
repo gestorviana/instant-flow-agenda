@@ -1,48 +1,24 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Bell, Plus, Grid3x3 } from "lucide-react";
+import { Calendar, Clock, CheckCircle, AlertCircle } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { format, startOfDay, isSameDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
-
-interface Booking {
-  id: string;
-  start_time: string;
-  end_time: string;
-  guest_name: string;
-  guest_email: string;
-  guest_phone: string;
-  status: string;
-  booking_date: string;
-  services: {
-    name: string;
-    price: number;
-    duration_minutes: number;
-  };
-  agendas: {
-    title: string;
-  };
-}
 
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [todayBookings, setTodayBookings] = useState<Booking[]>([]);
   const [stats, setStats] = useState({
-    todayValue: 0,
-    todayCount: 0,
-    newClients: 0,
+    totalAgendas: 0,
+    activeAgendas: 0,
+    totalBookings: 0,
+    pendingBookings: 0,
+    todayEarnings: 0,
   });
   const navigate = useNavigate();
   const { toast } = useToast();
-  const today = startOfDay(new Date());
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -65,65 +41,47 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (user) {
-      loadBookings();
+      loadStats();
     }
   }, [user]);
 
-  const loadBookings = async () => {
+  const loadStats = async () => {
     try {
-      const { data: userAgendas } = await (supabase as any)
+      const { data: agendas } = await (supabase as any)
         .from("agendas")
-        .select("id")
+        .select("id, is_active")
         .eq("user_id", user!.id);
 
-      if (!userAgendas || userAgendas.length === 0) {
-        setBookings([]);
-        setTodayBookings([]);
-        setLoading(false);
-        return;
-      }
-
-      const agendaIds = userAgendas.map((a: any) => a.id);
-
-      const { data, error } = await (supabase as any)
+      const agendaIds = agendas?.map((a: any) => a.id) || [];
+      
+      const { data: bookings } = await (supabase as any)
         .from("bookings")
         .select(`
-          *,
-          services (name, price, duration_minutes),
-          agendas (title)
+          id, 
+          status,
+          booking_date,
+          services (price)
         `)
-        .in("agenda_id", agendaIds)
-        .order("booking_date", { ascending: true })
-        .order("start_time", { ascending: true });
+        .in("agenda_id", agendaIds);
 
-      if (error) throw error;
-      
-      const allBookings = data || [];
-      setBookings(allBookings);
-      
-      const todayBookingsList = allBookings.filter((b: Booking) => 
-        isSameDay(new Date(b.booking_date), today)
+      // Calcular ganhos do dia
+      const today = new Date().toISOString().split('T')[0];
+      const todayBookings = bookings?.filter((b: any) => 
+        b.booking_date === today && b.status === 'confirmed'
+      ) || [];
+      const todayEarnings = todayBookings.reduce((sum: number, b: any) => 
+        sum + (b.services?.price || 0), 0
       );
-      setTodayBookings(todayBookingsList);
 
-      // Calcular estatísticas do dia
-      const todayValue = todayBookingsList
-        .filter((b: Booking) => b.status === 'confirmed')
-        .reduce((sum: number, b: Booking) => sum + (b.services?.price || 0), 0);
-      
       setStats({
-        todayValue,
-        todayCount: todayBookingsList.length,
-        newClients: 0, // TODO: implementar lógica de novos clientes
+        totalAgendas: agendas?.length || 0,
+        activeAgendas: agendas?.filter((a: any) => a.is_active).length || 0,
+        totalBookings: bookings?.length || 0,
+        pendingBookings: bookings?.filter((b: any) => b.status === "pending").length || 0,
+        todayEarnings,
       });
-    } catch (error: any) {
-      toast({
-        title: "Erro ao carregar agendamentos",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      console.error("Erro ao carregar estatísticas:", error);
     }
   };
 
@@ -134,147 +92,94 @@ const Dashboard = () => {
     }).format(value);
   };
 
-  const getInitials = (name: string) => {
-    const names = name.trim().split(' ');
-    if (names.length >= 2) {
-      return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
-    }
-    return name.substring(0, 2).toUpperCase();
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return 'bg-green-500';
-      case 'cancelled':
-        return 'bg-red-500';
-      case 'pending':
-        return 'bg-blue-500';
-      default:
-        return 'bg-gray-500';
-    }
-  };
-
-  const getDuration = (start: string, end: string) => {
-    const startMinutes = parseInt(start.split(':')[0]) * 60 + parseInt(start.split(':')[1]);
-    const endMinutes = parseInt(end.split(':')[0]) * 60 + parseInt(end.split(':')[1]);
-    return endMinutes - startMinutes;
-  };
-
   if (loading) {
     return (
-      <AppLayout showBottomNav={true}>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <p className="text-muted-foreground">Carregando...</p>
-        </div>
+      <AppLayout>
+        <p>Carregando...</p>
       </AppLayout>
     );
   }
 
   return (
-    <AppLayout showBottomNav={true}>
-      <div className="max-w-2xl mx-auto space-y-6 pb-6">
-        {/* Header com notificação */}
-        <div className="flex items-start justify-between">
-          <div className="relative">
-            <Bell className="h-6 w-6 text-foreground" />
-            {stats.todayCount > 0 && (
-              <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 bg-red-500 text-white text-xs">
-                {stats.todayCount}
-              </Badge>
-            )}
-          </div>
-          <div className="text-right">
-            <p className="font-semibold text-lg">Hoje</p>
-            <p className="text-sm text-muted-foreground">09:00 - 20:00</p>
-          </div>
-        </div>
-
-        {/* Data */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold capitalize">
-            {format(today, "EEE., dd MMM.", { locale: ptBR })}
-          </h1>
-          <span className="text-sm text-muted-foreground">
-            {format(today, "HH:mm")} - {format(new Date(today.getTime() + 11 * 60 * 60 * 1000), "HH:mm")}
-          </span>
-        </div>
-
-        {/* Cards de estatísticas */}
-        <Card className="p-6">
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <p className="text-xs text-muted-foreground uppercase mb-1">Valor</p>
-              <p className="text-xl font-bold">{formatPrice(stats.todayValue)}</p>
+    <AppLayout title="Flash Agenda ⚡">
+      <div className="max-w-2xl mx-auto space-y-6">
+        <Card className="bg-gradient-to-br from-primary/10 to-secondary/10 border-primary/20">
+          <CardHeader>
+            <CardTitle className="text-2xl">Ganhos Estimados Hoje</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-4xl font-bold text-primary">
+              {formatPrice(stats.todayEarnings)}
             </div>
-            <div className="border-l pl-4">
-              <p className="text-xs text-muted-foreground uppercase mb-1">Agendamentos</p>
-              <p className="text-xl font-bold">{stats.todayCount}</p>
-            </div>
-            <div className="border-l pl-4">
-              <p className="text-xs text-muted-foreground uppercase mb-1">Novos Clientes</p>
-              <p className="text-xl font-bold">{stats.newClients}</p>
-            </div>
-          </div>
+            <p className="text-sm text-muted-foreground mt-2">
+              Com base nos atendimentos finalizados
+            </p>
+          </CardContent>
         </Card>
 
-        {/* Lista de agendamentos */}
-        <div className="space-y-3">
-          {todayBookings.length === 0 ? (
-            <Card className="p-12 text-center">
-              <p className="text-muted-foreground">Nenhum agendamento para hoje</p>
-            </Card>
-          ) : (
-            todayBookings.map((booking) => (
-              <Card key={booking.id} className="p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-center gap-4">
-                  {/* Barra de status colorida */}
-                  <div className={`w-1 h-16 rounded-full ${getStatusColor(booking.status)}`} />
-                  
-                  {/* Horário e duração */}
-                  <div className="flex flex-col min-w-[70px]">
-                    <span className="text-lg font-bold">{booking.start_time.substring(0, 5)}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {getDuration(booking.start_time, booking.end_time)}min
-                    </span>
-                  </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Total de Agendas
+              </CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalAgendas}</div>
+              <p className="text-xs text-muted-foreground">
+                {stats.activeAgendas} ativas
+              </p>
+            </CardContent>
+          </Card>
 
-                  {/* Informações do agendamento */}
-                  <div className="flex-1">
-                    <p className="font-semibold text-base">{booking.guest_name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {booking.services?.name} • {booking.agendas?.title}
-                    </p>
-                  </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Agendamentos
+              </CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalBookings}</div>
+              <p className="text-xs text-muted-foreground">
+                Total recebidos
+              </p>
+            </CardContent>
+          </Card>
 
-                  {/* Avatar com iniciais */}
-                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground font-semibold">
-                    {getInitials(booking.guest_name)}
-                  </div>
-                </div>
-              </Card>
-            ))
-          )}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Pendentes
+              </CardTitle>
+              <AlertCircle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.pendingBookings}</div>
+              <p className="text-xs text-muted-foreground">
+                Aguardando confirmação
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Confirmados
+              </CardTitle>
+              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {stats.totalBookings - stats.pendingBookings}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Já confirmados
+              </p>
+            </CardContent>
+          </Card>
         </div>
-
-        {/* Botão flutuante de adicionar */}
-        <Button
-          size="lg"
-          className="fixed bottom-20 right-6 h-14 w-14 rounded-full shadow-lg"
-          onClick={() => navigate("/agendas")}
-        >
-          <Plus className="h-6 w-6" />
-        </Button>
-
-        {/* Botão de visualização de grade */}
-        <Button
-          variant="outline"
-          size="icon"
-          className="fixed bottom-20 left-6 h-12 w-12 rounded-lg"
-          onClick={() => navigate("/bookings")}
-        >
-          <Grid3x3 className="h-5 w-5" />
-        </Button>
       </div>
     </AppLayout>
   );

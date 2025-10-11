@@ -14,18 +14,7 @@ import { format, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const PublicBooking = () => {
-  const params = useParams();
-  const slug = params.slug;
-  
-  // Debug detalhado
-  console.log("=== PUBLIC BOOKING COMPONENT ===");
-  console.log("URL completa:", window.location.href);
-  console.log("pathname:", window.location.pathname);
-  console.log("Todos os params:", params);
-  console.log("Slug extraído:", slug);
-  console.log("Slug type:", typeof slug);
-  console.log("Slug é undefined?", slug === undefined);
-  console.log("Slug é :slug?", slug === ":slug");
+  const { slug } = useParams();
   const [agenda, setAgenda] = useState<Agenda | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [services, setServices] = useState<Service[]>([]);
@@ -367,20 +356,10 @@ const PublicBooking = () => {
 
   if (!agenda) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-screen flex items-center justify-center">
         <Card className="max-w-md">
-          <CardContent className="pt-6 text-center space-y-4">
+          <CardContent className="pt-6 text-center">
             <p className="text-muted-foreground">Agenda não encontrada</p>
-            <div className="text-sm text-muted-foreground bg-muted p-4 rounded-lg">
-              <p className="font-semibold mb-2">💡 Dica:</p>
-              <p>A URL correta para acessar uma agenda é:</p>
-              <code className="block mt-2 p-2 bg-background rounded">
-                /agendar/barbeiro
-              </code>
-              <p className="mt-2 text-xs">
-                (substitua "barbeiro" pelo slug da sua agenda)
-              </p>
-            </div>
           </CardContent>
         </Card>
       </div>
@@ -451,11 +430,8 @@ const PublicBooking = () => {
               </div>
             </div>
             <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-              Agende seu Horário
+              {profile?.full_name || agenda.title}
             </h1>
-            <p className="text-xl font-semibold text-foreground/80">
-              com {profile?.full_name || agenda.title}
-            </p>
             {agenda.description && (
               <p className="text-lg text-muted-foreground max-w-md mx-auto">{agenda.description}</p>
             )}

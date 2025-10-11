@@ -27,6 +27,17 @@ export const AppLayout = ({ children, title, showBottomNav = true }: AppLayoutPr
 
   return (
     <div className="min-h-screen bg-background pb-20">
+      <header className="sticky top-0 z-40 bg-background border-b">
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            {title || "Flash Agenda ⚡"}
+          </h1>
+          <Button variant="ghost" size="icon" onClick={handleLogout}>
+            <LogOut className="h-5 w-5" />
+          </Button>
+        </div>
+      </header>
+      
       <main className="container mx-auto px-4 py-6">
         {children}
       </main>
