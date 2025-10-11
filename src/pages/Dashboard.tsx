@@ -23,7 +23,7 @@ interface Booking {
   services: {
     name: string;
     price: number;
-    duration: number;
+    duration_minutes: number;
   };
   agendas: {
     title: string;
@@ -89,7 +89,7 @@ const Dashboard = () => {
         .from("bookings")
         .select(`
           *,
-          services (name, price, duration),
+          services (name, price, duration_minutes),
           agendas (title)
         `)
         .in("agenda_id", agendaIds)
