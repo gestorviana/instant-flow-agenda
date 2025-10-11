@@ -5,6 +5,16 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Allowed webhook domains for security
+const ALLOWED_WEBHOOK_DOMAINS = [
+  'hooks.n8n.cloud',
+  'webhook.site',
+  'n8n.cloud',
+  'pipedream.com',
+  'zapier.com',
+  'make.com'
+];
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -15,6 +25,44 @@ serve(async (req) => {
 
     if (!webhook_url) {
       throw new Error("URL do webhook não fornecida");
+    }
+
+    // Validate webhook URL to prevent SSRF attacks
+    let url: URL;
+    try {
+      url = new URL(webhook_url);
+    } catch {
+      throw new Error('URL inválida');
+    }
+
+    // Check if domain is allowed
+    const isAllowedDomain = ALLOWED_WEBHOOK_DOMAINS.some(domain => 
+      url.hostname === domain || url.hostname.endsWith(`.${domain}`)
+    );
+    
+    if (!isAllowedDomain) {
+      throw new Error('Domínio do webhook não autorizado. Apenas URLs de serviços conhecidos são permitidas.');
+    }
+
+    // Prevent internal network access
+    const hostname = url.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname.match(/^10\./) ||
+      hostname.match(/^192\.168\./) ||
+      hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) ||
+      hostname.match(/^169\.254\./) ||
+      hostname === '0.0.0.0' ||
+      hostname === '::1' ||
+      hostname === 'metadata.google.internal'
+    ) {
+      throw new Error('Acesso a redes internas não permitido');
+    }
+
+    // Only allow HTTP/HTTPS
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      throw new Error('Apenas protocolos HTTP e HTTPS são permitidos');
     }
 
     console.log('🧪 Testing webhook:', webhook_url);

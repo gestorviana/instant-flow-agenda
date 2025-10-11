@@ -12,6 +12,27 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Agenda, Availability, Service } from "@/types/database";
 import { format, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { z } from "zod";
+
+// Validation schema for booking form
+const bookingSchema = z.object({
+  name: z.string()
+    .trim()
+    .min(2, "Nome deve ter pelo menos 2 caracteres")
+    .max(100, "Nome muito longo"),
+  email: z.string()
+    .trim()
+    .email("Email inválido")
+    .max(255, "Email muito longo"),
+  phone: z.string()
+    .trim()
+    .regex(/^\+?[1-9]\d{1,14}$/, "Telefone inválido (use formato internacional)")
+    .optional()
+    .or(z.literal("")),
+  notes: z.string()
+    .max(1000, "Observações muito longas")
+    .optional()
+});
 
 const PublicBooking = () => {
   const { slug } = useParams();
@@ -250,6 +271,24 @@ const PublicBooking = () => {
       toast({
         title: "Dados incompletos",
         description: "Por favor, preencha todos os campos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate form data with Zod schema
+    const validation = bookingSchema.safeParse({
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone
+    });
+
+    if (!validation.success) {
+      const errorMessage = validation.error.errors[0]?.message || "Dados inválidos";
+      console.error("Validação Zod falhou:", validation.error.errors);
+      toast({
+        title: "Dados inválidos",
+        description: errorMessage,
         variant: "destructive",
       });
       return;
