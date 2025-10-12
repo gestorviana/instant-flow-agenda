@@ -21,13 +21,21 @@ const bookingSchema = z.object({
     .min(2, "Nome deve ter pelo menos 2 caracteres")
     .max(100, "Nome muito longo"),
   email: z.string()
-    .min(1, "Email é obrigatório")
     .email("Email inválido")
-    .max(255, "Email muito longo"),
+    .max(255, "Email muito longo")
+    .optional()
+    .or(z.literal("")),
   phone: z.string()
-    .min(8, "Telefone muito curto")
-    .max(20, "Telefone muito longo")
-});
+    .min(1, "WhatsApp é obrigatório")
+    .min(8, "WhatsApp muito curto")
+    .max(20, "WhatsApp muito longo")
+}).refine(
+  (data) => data.email || data.phone,
+  {
+    message: "Forneça pelo menos WhatsApp ou email",
+    path: ["phone"],
+  }
+);
 
 const PublicBooking = () => {
   const { slug } = useParams();
@@ -328,7 +336,7 @@ const PublicBooking = () => {
           start_time: `${serviceStartHour.toString().padStart(2, "0")}:${serviceStartMin.toString().padStart(2, "0")}`,
           end_time: `${serviceEndHour.toString().padStart(2, "0")}:${serviceEndMin.toString().padStart(2, "0")}`,
           guest_name: validation.data.name,
-          guest_email: validation.data.email,
+          guest_email: validation.data.email || null,
           guest_phone: validation.data.phone,
           service_id: service.id,
           status: "pending",
@@ -670,15 +678,14 @@ const PublicBooking = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">Email (opcional)</Label>
                 <Input
                   id="email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
                   className="h-12 rounded-xl text-base"
-                  placeholder="seuemail@exemplo.com"
+                  placeholder="seuemail@exemplo.com (opcional)"
                 />
               </div>
               <div className="space-y-2">

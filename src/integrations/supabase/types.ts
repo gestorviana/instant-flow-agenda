@@ -103,7 +103,7 @@ export type Database = {
           created_at: string | null
           custom_reminder: string | null
           end_time: string
-          guest_email: string
+          guest_email: string | null
           guest_name: string
           guest_phone: string | null
           id: string
@@ -119,7 +119,7 @@ export type Database = {
           created_at?: string | null
           custom_reminder?: string | null
           end_time: string
-          guest_email: string
+          guest_email?: string | null
           guest_name: string
           guest_phone?: string | null
           id?: string
@@ -135,7 +135,7 @@ export type Database = {
           created_at?: string | null
           custom_reminder?: string | null
           end_time?: string
-          guest_email?: string
+          guest_email?: string | null
           guest_name?: string
           guest_phone?: string | null
           id?: string
