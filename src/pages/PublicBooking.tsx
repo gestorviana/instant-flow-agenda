@@ -386,23 +386,31 @@ const PublicBooking = () => {
         return;
       }
 
-      const bookingData = bookingResults[0].data;
-      console.log("Primeiro booking criado:", bookingData);
+      console.log(`✅ ${bookingResults.length} booking(s) criado(s) com sucesso`);
 
-      // Notificar via webhook sobre novo agendamento
-      try {
-        console.log("Enviando notificação webhook...");
-        await supabase.functions.invoke("notify-booking", {
-          body: {
-            booking_id: bookingData.id,
-            event_type: "created",
-          },
-        });
-        console.log("Webhook enviado com sucesso");
-      } catch (webhookError) {
-        console.error("Erro ao enviar webhook:", webhookError);
-        // Não bloqueia o agendamento se o webhook falhar
-      }
+      // Notificar via webhook sobre todos os agendamentos criados
+      const notificationPromises = bookingResults.map(async (result, index) => {
+        if (result.data) {
+          try {
+            console.log(`📬 Enviando notificação ${index + 1}/${bookingResults.length} para booking ${result.data.id}`);
+            const webhookResponse = await supabase.functions.invoke("notify-booking", {
+              body: {
+                booking_id: result.data.id,
+                event_type: "created",
+              },
+            });
+            console.log(`✅ Notificação ${index + 1} enviada com sucesso`);
+            return webhookResponse;
+          } catch (webhookError) {
+            console.error(`❌ Erro ao enviar notificação ${index + 1}:`, webhookError);
+            // Não bloqueia o agendamento se o webhook falhar
+            return null;
+          }
+        }
+      });
+      
+      await Promise.all(notificationPromises);
+      console.log("✅ Todas as notificações processadas");
 
       setSuccess(true);
       console.log("=== AGENDAMENTO CONCLUÍDO COM SUCESSO ===");
