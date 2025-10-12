@@ -6,6 +6,67 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Allowed webhook domains for security
+const ALLOWED_WEBHOOK_DOMAINS = [
+  'hooks.n8n.cloud',
+  'webhook.site',
+  'n8n.cloud',
+  'pipedream.com',
+  'zapier.com',
+  'make.com',
+  'gestorviana.com', // Domínio personalizado do usuário
+  'webhook.n8n.io'
+];
+
+// Função para verificar se é domínio permitido ou domínio customizado válido
+const isValidWebhookDomain = (hostname: string): boolean => {
+  // Verifica se é um dos domínios permitidos
+  const isAllowedDomain = ALLOWED_WEBHOOK_DOMAINS.some(domain => 
+    hostname === domain || hostname.endsWith(`.${domain}`)
+  );
+  
+  // Permite domínios customizados que não sejam localhost/internos
+  const isCustomDomain = hostname.includes('.') && !hostname.match(/^(localhost|127\.0\.0\.1)$/);
+  
+  return isAllowedDomain || isCustomDomain;
+};
+
+// Valida URL do webhook
+const validateWebhookUrl = (webhookUrl: string): void => {
+  let url: URL;
+  try {
+    url = new URL(webhookUrl);
+  } catch {
+    throw new Error('URL do webhook inválida');
+  }
+
+  // Valida protocolo
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    throw new Error('Apenas protocolos HTTP e HTTPS são permitidos');
+  }
+
+  // Valida rede interna
+  const hostname = url.hostname.toLowerCase();
+  if (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.match(/^10\./) ||
+    hostname.match(/^192\.168\./) ||
+    hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) ||
+    hostname.match(/^169\.254\./) ||
+    hostname === '0.0.0.0' ||
+    hostname === '::1' ||
+    hostname === 'metadata.google.internal'
+  ) {
+    throw new Error('Acesso a redes internas não permitido');
+  }
+
+  // Valida domínio
+  if (!isValidWebhookDomain(hostname)) {
+    throw new Error('Domínio do webhook não autorizado');
+  }
+};
+
 interface BookingNotification {
   booking_id: string;
   event_type: "created" | "confirmed" | "cancelled";
@@ -77,6 +138,23 @@ serve(async (req) => {
     }
 
     console.log('🔗 Webhook URL found:', settings.webhook_url);
+
+    // Valida URL do webhook antes de enviar
+    try {
+      validateWebhookUrl(settings.webhook_url);
+    } catch (validationError: any) {
+      console.error('⚠️ Webhook URL validation failed:', validationError.message);
+      return new Response(
+        JSON.stringify({ 
+          message: "Webhook não configurado corretamente",
+          error: validationError.message 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        }
+      );
+    }
 
     // Preparar payload para webhook
     const webhookPayload = {

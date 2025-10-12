@@ -12,8 +12,24 @@ const ALLOWED_WEBHOOK_DOMAINS = [
   'n8n.cloud',
   'pipedream.com',
   'zapier.com',
-  'make.com'
+  'make.com',
+  'gestorviana.com', // Domínio personalizado do usuário
+  'webhook.n8n.io'
 ];
+
+// Função para verificar se é domínio permitido ou domínio customizado válido
+const isValidWebhookDomain = (hostname: string): boolean => {
+  // Verifica se é um dos domínios permitidos
+  const isAllowedDomain = ALLOWED_WEBHOOK_DOMAINS.some(domain => 
+    hostname === domain || hostname.endsWith(`.${domain}`)
+  );
+  
+  // Permite domínios customizados que não sejam localhost/internos
+  // (a validação de rede interna é feita separadamente)
+  const isCustomDomain = hostname.includes('.') && !hostname.match(/^(localhost|127\.0\.0\.1)$/);
+  
+  return isAllowedDomain || isCustomDomain;
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -35,16 +51,7 @@ serve(async (req) => {
       throw new Error('URL inválida');
     }
 
-    // Check if domain is allowed
-    const isAllowedDomain = ALLOWED_WEBHOOK_DOMAINS.some(domain => 
-      url.hostname === domain || url.hostname.endsWith(`.${domain}`)
-    );
-    
-    if (!isAllowedDomain) {
-      throw new Error('Domínio do webhook não autorizado. Apenas URLs de serviços conhecidos são permitidas.');
-    }
-
-    // Prevent internal network access
+    // Primeiro valida rede interna (mais crítico)
     const hostname = url.hostname.toLowerCase();
     if (
       hostname === 'localhost' ||
@@ -59,6 +66,12 @@ serve(async (req) => {
     ) {
       throw new Error('Acesso a redes internas não permitido');
     }
+
+    // Depois valida se é domínio permitido
+    if (!isValidWebhookDomain(hostname)) {
+      throw new Error('Domínio do webhook não autorizado');
+    }
+
 
     // Only allow HTTP/HTTPS
     if (!['http:', 'https:'].includes(url.protocol)) {
