@@ -211,42 +211,64 @@ const PublicBooking = () => {
     const times: string[] = [];
     const slotDuration = selectedServices.reduce((total, service) => total + service.duration_minutes, 0); // Duração total dos serviços
 
-    // Função auxiliar para verificar se um horário está bloqueado
-    const isTimeBlocked = (timeStr: string) => {
-      // Verificar bloqueio de almoço
+    // Função para converter HH:MM em minutos
+    const timeToMinutes = (timeStr: string): number => {
+      const [hours, minutes] = timeStr.split(":").map(Number);
+      return hours * 60 + minutes;
+    };
+
+    // Função para converter minutos em HH:MM
+    const minutesToTime = (minutes: number): string => {
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
+    };
+
+    // Função para verificar se um intervalo de tempo tem conflito com agendamentos existentes
+    const hasConflict = (startTimeMinutes: number, endTimeMinutes: number): boolean => {
+      const startTime = minutesToTime(startTimeMinutes);
+      const endTime = minutesToTime(endTimeMinutes);
+
+      // Verificar conflito com horário de almoço
       if (agenda.lunch_break_start && agenda.lunch_break_end) {
-        const lunchStart = agenda.lunch_break_start.substring(0, 5); // HH:MM
-        const lunchEnd = agenda.lunch_break_end.substring(0, 5);
-        if (timeStr >= lunchStart && timeStr < lunchEnd) {
+        const lunchStart = timeToMinutes(agenda.lunch_break_start.substring(0, 5));
+        const lunchEnd = timeToMinutes(agenda.lunch_break_end.substring(0, 5));
+        
+        // Se o novo agendamento sobrepõe o almoço
+        if (startTimeMinutes < lunchEnd && endTimeMinutes > lunchStart) {
           return true;
         }
       }
-      
-      // Verificar se já está agendado
+
+      // Verificar conflito com agendamentos existentes
       return existingBookings?.some((booking: any) => {
-        return booking.start_time <= timeStr && booking.end_time > timeStr;
-      });
+        const bookingStart = timeToMinutes(booking.start_time);
+        const bookingEnd = timeToMinutes(booking.end_time);
+        
+        // Se há sobreposição entre o novo agendamento e o existente
+        return startTimeMinutes < bookingEnd && endTimeMinutes > bookingStart;
+      }) || false;
     };
 
     dayAvailability.forEach((slot) => {
-      const [startHour, startMin] = slot.start_time.split(":").map(Number);
-      const [endHour, endMin] = slot.end_time.split(":").map(Number);
+      const slotStart = timeToMinutes(slot.start_time);
+      const slotEnd = timeToMinutes(slot.end_time);
 
-      let currentTime = startHour * 60 + startMin;
-      const endTime = endHour * 60 + endMin;
-
-      while (currentTime + slotDuration <= endTime) {
-        const hour = Math.floor(currentTime / 60);
-        const min = currentTime % 60;
-        const timeStr = `${hour.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}`;
+      // Criar intervalos de 30 em 30 minutos
+      let currentTime = slotStart;
+      
+      while (currentTime + slotDuration <= slotEnd) {
+        const endTimeForSlot = currentTime + slotDuration;
         
-        if (!isTimeBlocked(timeStr)) {
-          times.push(timeStr);
+        // Verificar se todo o intervalo necessário está disponível
+        if (!hasConflict(currentTime, endTimeForSlot)) {
+          times.push(minutesToTime(currentTime));
         }
 
-        currentTime += slotDuration;
+        // Incrementar de 30 em 30 minutos
+        currentTime += 30;
       }
-      });
+    });
 
       setAvailableTimes(times);
     } catch (error) {
