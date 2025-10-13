@@ -326,11 +326,13 @@ const PublicBooking = () => {
     setSubmitting(true);
 
     try {
+      // Verificar conflitos antes de agendar
       const totalDuration = selectedServices.reduce((total, service) => total + service.duration_minutes, 0);
       const [hour, min] = selectedTime.split(":").map(Number);
-      const totalMinutes = hour * 60 + min + totalDuration;
-      const endHour = Math.floor(totalMinutes / 60);
-      const endMin = totalMinutes % 60;
+      const startTimeMinutes = hour * 60 + min;
+      const endTimeMinutes = startTimeMinutes + totalDuration;
+      const endHour = Math.floor(endTimeMinutes / 60);
+      const endMin = endTimeMinutes % 60;
       const endTime = `${endHour.toString().padStart(2, "0")}:${endMin.toString().padStart(2, "0")}`;
 
       console.log("Calculando horários:", {
@@ -339,11 +341,46 @@ const PublicBooking = () => {
         endTime
       });
 
+      // Verificar novamente se há conflitos no momento do agendamento
+      const { data: conflictCheck, error: conflictError } = await (supabase as any)
+        .from("bookings")
+        .select("start_time, end_time")
+        .eq("agenda_id", agenda.id)
+        .eq("booking_date", format(selectedDate, "yyyy-MM-dd"))
+        .in("status", ["pending", "confirmed"]);
+
+      if (conflictError) {
+        console.error("Erro ao verificar conflitos:", conflictError);
+        throw new Error("Erro ao verificar disponibilidade");
+      }
+
+      // Verificar se há sobreposição
+      const hasOverlap = conflictCheck?.some((booking: any) => {
+        const bookingStart = booking.start_time.split(":").map(Number);
+        const bookingEnd = booking.end_time.split(":").map(Number);
+        const bookingStartMinutes = bookingStart[0] * 60 + bookingStart[1];
+        const bookingEndMinutes = bookingEnd[0] * 60 + bookingEnd[1];
+        
+        return startTimeMinutes < bookingEndMinutes && endTimeMinutes > bookingStartMinutes;
+      });
+
+      if (hasOverlap) {
+        toast({
+          title: "Horário não disponível",
+          description: "Este horário foi reservado por outra pessoa. Por favor, escolha outro horário.",
+          variant: "destructive",
+        });
+        setSubmitting(false);
+        // Recalcular horários disponíveis
+        await calculateAvailableTimes();
+        return;
+      }
+
       console.log("🔐 Verificando autenticação...");
       const { data: sessionData } = await supabase.auth.getSession();
       console.log("📝 Sessão atual:", sessionData.session ? "Autenticado" : "Anônimo (correto para booking público)");
       
-      // Criar um booking para cada serviço selecionado
+      // Criar um booking para cada serviço selecionado sequencialmente
       const bookingPromises = selectedServices.map(async (service, index) => {
         const serviceStartMinutes = hour * 60 + min + (index > 0 ? selectedServices.slice(0, index).reduce((sum, s) => sum + s.duration_minutes, 0) : 0);
         const serviceEndMinutes = serviceStartMinutes + service.duration_minutes;
