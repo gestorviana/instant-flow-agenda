@@ -50,6 +50,7 @@ const PublicBooking = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -72,12 +73,12 @@ const PublicBooking = () => {
   }, [agenda]);
 
   useEffect(() => {
-    if (selectedDate && availability.length > 0 && agenda) {
-      calculateAvailableTimes();
-    } else if (!selectedDate || availability.length === 0) {
+    if (selectedDate && selectedServices.length > 0 && agenda) {
+      loadAvailableSlots();
+    } else if (!selectedDate || selectedServices.length === 0) {
       setAvailableTimes([]);
     }
-  }, [selectedDate, availability, agenda, selectedServices]);
+  }, [selectedDate, selectedServices, agenda]);
 
   const loadAgenda = async () => {
     try {
@@ -179,101 +180,59 @@ const PublicBooking = () => {
     }
   };
 
-  const calculateAvailableTimes = async () => {
+  const loadAvailableSlots = async () => {
     if (!selectedDate || !agenda || selectedServices.length === 0) {
       setAvailableTimes([]);
       return;
     }
 
-    const dayOfWeek = selectedDate.getDay();
-    const dayAvailability = availability.filter((a) => a.day_of_week === dayOfWeek);
-
-    if (dayAvailability.length === 0) {
-      setAvailableTimes([]);
-      return;
-    }
-
+    setLoadingSlots(true);
     try {
-      // Buscar agendamentos existentes para esta data
-      const { data: existingBookings, error } = await (supabase as any)
-          .from("bookings")
-          .select("start_time, end_time")
-          .eq("agenda_id", agenda.id)
-          .eq("booking_date", format(selectedDate, "yyyy-MM-dd"))
-          .in("status", ["pending", "confirmed"]);
+      const formattedDate = format(selectedDate, "yyyy-MM-dd");
+      const serviceId = selectedServices[0].id;
+
+      console.log("Chamando list_available_slots:", {
+        p_agenda_id: agenda.id,
+        p_service_id: serviceId,
+        p_date: formattedDate,
+      });
+
+      const { data, error } = await supabase.rpc("list_available_slots", {
+        p_agenda_id: agenda.id,
+        p_service_id: serviceId,
+        p_date: formattedDate,
+      });
 
       if (error) {
-        console.error("Erro ao buscar agendamentos:", error);
+        console.error("Erro ao carregar slots:", error);
+        toast({
+          title: "Erro ao carregar horários",
+          description: error.message,
+          variant: "destructive",
+        });
         setAvailableTimes([]);
         return;
       }
 
-    const times: string[] = [];
-    const slotDuration = selectedServices.reduce((total, service) => total + service.duration_minutes, 0); // Duração total dos serviços
+      console.log("Slots recebidos:", data);
 
-    // Função para converter HH:MM em minutos
-    const timeToMinutes = (timeStr: string): number => {
-      const [hours, minutes] = timeStr.split(":").map(Number);
-      return hours * 60 + minutes;
-    };
-
-    // Função para converter minutos em HH:MM
-    const minutesToTime = (minutes: number): string => {
-      const hours = Math.floor(minutes / 60);
-      const mins = minutes % 60;
-      return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
-    };
-
-    // Função para verificar se um intervalo de tempo tem conflito com agendamentos existentes
-    const hasConflict = (startTimeMinutes: number, endTimeMinutes: number): boolean => {
-      const startTime = minutesToTime(startTimeMinutes);
-      const endTime = minutesToTime(endTimeMinutes);
-
-      // Verificar conflito com horário de almoço
-      if (agenda.lunch_break_start && agenda.lunch_break_end) {
-        const lunchStart = timeToMinutes(agenda.lunch_break_start.substring(0, 5));
-        const lunchEnd = timeToMinutes(agenda.lunch_break_end.substring(0, 5));
-        
-        // Se o novo agendamento sobrepõe o almoço
-        if (startTimeMinutes < lunchEnd && endTimeMinutes > lunchStart) {
-          return true;
-        }
+      if (data && data.length > 0) {
+        const times = data.map((slot: any) => {
+          const startDate = new Date(slot.slot_start);
+          return startDate.toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+        });
+        setAvailableTimes(times);
+      } else {
+        setAvailableTimes([]);
       }
-
-      // Verificar conflito com agendamentos existentes
-      return existingBookings?.some((booking: any) => {
-        const bookingStart = timeToMinutes(booking.start_time);
-        const bookingEnd = timeToMinutes(booking.end_time);
-        
-        // Se há sobreposição entre o novo agendamento e o existente
-        return startTimeMinutes < bookingEnd && endTimeMinutes > bookingStart;
-      }) || false;
-    };
-
-    dayAvailability.forEach((slot) => {
-      const slotStart = timeToMinutes(slot.start_time);
-      const slotEnd = timeToMinutes(slot.end_time);
-
-      // Criar intervalos de 30 em 30 minutos
-      let currentTime = slotStart;
-      
-      while (currentTime + slotDuration <= slotEnd) {
-        const endTimeForSlot = currentTime + slotDuration;
-        
-        // Verificar se todo o intervalo necessário está disponível
-        if (!hasConflict(currentTime, endTimeForSlot)) {
-          times.push(minutesToTime(currentTime));
-        }
-
-        // Incrementar de 30 em 30 minutos
-        currentTime += 30;
-      }
-    });
-
-      setAvailableTimes(times);
     } catch (error) {
-      console.error("Erro ao calcular horários:", error);
+      console.error("Erro ao carregar slots:", error);
       setAvailableTimes([]);
+    } finally {
+      setLoadingSlots(false);
     }
   };
 
@@ -372,7 +331,7 @@ const PublicBooking = () => {
         });
         setSubmitting(false);
         // Recalcular horários disponíveis
-        await calculateAvailableTimes();
+        await loadAvailableSlots();
         return;
       }
 
@@ -435,6 +394,22 @@ const PublicBooking = () => {
         console.error("Código do erro:", firstBookingError.error.code);
         console.error("Mensagem do erro:", firstBookingError.error.message);
         console.error("Detalhes do erro:", firstBookingError.error.details);
+        
+        // Check if it's a conflict error (exclusion constraint violation)
+        if (firstBookingError.error.code === "23P01" || 
+            firstBookingError.error.message?.includes("bookings_no_overlap") ||
+            firstBookingError.error.message?.includes("conflicting key value")) {
+          toast({
+            title: "Horário acabou de ser ocupado",
+            description: "Esse horário foi reservado por outro cliente. Atualizamos a lista para você.",
+            variant: "destructive",
+          });
+          // Refresh available slots
+          await loadAvailableSlots();
+          setSelectedTime("");
+          setSubmitting(false);
+          return;
+        }
         
         toast({
           title: "Erro ao criar agendamento",
