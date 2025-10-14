@@ -285,11 +285,8 @@ const PublicBooking = () => {
         const startsAt = new Date(selectedDate);
         startsAt.setHours(serviceStartHour, serviceStartMin, 0, 0);
         
-        // Calcular end_time para campos legacy (trigger vai recalcular ends_at)
-        const serviceEndMinutes = serviceStartMinutes + service.duration_minutes;
-        const serviceEndHour = Math.floor(serviceEndMinutes / 60);
-        const serviceEndMin = serviceEndMinutes % 60;
-        
+        // Enviar starts_at + campos legacy obrigatórios
+        // O trigger sync_booking_timestamps vai sincronizar tudo automaticamente
         const bookingData = {
           agenda_id: agenda.id,
           service_id: service.id,
@@ -299,11 +296,9 @@ const PublicBooking = () => {
           starts_at: startsAt.toISOString(),
           booking_date: format(selectedDate, "yyyy-MM-dd"),
           start_time: `${serviceStartHour.toString().padStart(2, "0")}:${serviceStartMin.toString().padStart(2, "0")}`,
-          end_time: `${serviceEndHour.toString().padStart(2, "0")}:${serviceEndMin.toString().padStart(2, "0")}`,
+          end_time: "00:00", // Placeholder - trigger vai calcular
           status: "pending",
         };
-        
-        console.log(`Creating booking ${index + 1}:`, bookingData);
         
         const result = await supabase
           .from("bookings")
