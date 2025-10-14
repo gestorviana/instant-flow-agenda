@@ -239,19 +239,7 @@ const PublicBooking = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    console.log("=== INICIANDO AGENDAMENTO ===");
-    console.log("Data selecionada:", selectedDate);
-    console.log("Horário selecionado:", selectedTime);
-    console.log("Serviços selecionados:", selectedServices);
-    console.log("Dados do formulário:", formData);
-    
     if (!selectedDate || !selectedTime || !agenda || selectedServices.length === 0) {
-      console.error("Validação falhou:", {
-        selectedDate: !!selectedDate,
-        selectedTime: !!selectedTime,
-        agenda: !!agenda,
-        servicesLength: selectedServices.length
-      });
       toast({
         title: "Dados incompletos",
         description: "Por favor, preencha todos os campos.",
@@ -260,9 +248,7 @@ const PublicBooking = () => {
       return;
     }
 
-    // Validate form data with Zod schema
-    console.log("📋 Dados do formulário ANTES da validação:", formData);
-    
+    // Validate form data
     const validation = bookingSchema.safeParse({
       name: formData.name.trim(),
       email: formData.email.trim(),
@@ -271,7 +257,6 @@ const PublicBooking = () => {
 
     if (!validation.success) {
       const errorMessage = validation.error.errors[0]?.message || "Dados inválidos";
-      console.error("❌ Validação Zod falhou:", validation.error.errors);
       toast({
         title: "Dados inválidos",
         description: errorMessage,
@@ -279,91 +264,46 @@ const PublicBooking = () => {
       });
       return;
     }
-    
-    console.log("✅ Validação passou! Dados validados:", validation.data);
 
     setSubmitting(true);
 
     try {
-      // Verificar conflitos antes de agendar
-      const totalDuration = selectedServices.reduce((total, service) => total + service.duration_minutes, 0);
       const [hour, min] = selectedTime.split(":").map(Number);
-      const startTimeMinutes = hour * 60 + min;
-      const endTimeMinutes = startTimeMinutes + totalDuration;
-      const endHour = Math.floor(endTimeMinutes / 60);
-      const endMin = endTimeMinutes % 60;
-      const endTime = `${endHour.toString().padStart(2, "0")}:${endMin.toString().padStart(2, "0")}`;
-
-      console.log("Calculando horários:", {
-        totalDuration,
-        startTime: selectedTime,
-        endTime
-      });
-
-      // Verificar novamente se há conflitos no momento do agendamento
-      const { data: conflictCheck, error: conflictError } = await (supabase as any)
-        .from("bookings")
-        .select("start_time, end_time")
-        .eq("agenda_id", agenda.id)
-        .eq("booking_date", format(selectedDate, "yyyy-MM-dd"))
-        .in("status", ["pending", "confirmed"]);
-
-      if (conflictError) {
-        console.error("Erro ao verificar conflitos:", conflictError);
-        throw new Error("Erro ao verificar disponibilidade");
-      }
-
-      // Verificar se há sobreposição
-      const hasOverlap = conflictCheck?.some((booking: any) => {
-        const bookingStart = booking.start_time.split(":").map(Number);
-        const bookingEnd = booking.end_time.split(":").map(Number);
-        const bookingStartMinutes = bookingStart[0] * 60 + bookingStart[1];
-        const bookingEndMinutes = bookingEnd[0] * 60 + bookingEnd[1];
-        
-        return startTimeMinutes < bookingEndMinutes && endTimeMinutes > bookingStartMinutes;
-      });
-
-      if (hasOverlap) {
-        toast({
-          title: "Horário não disponível",
-          description: "Este horário foi reservado por outra pessoa. Por favor, escolha outro horário.",
-          variant: "destructive",
-        });
-        setSubmitting(false);
-        // Recalcular horários disponíveis
-        await loadAvailableSlots();
-        return;
-      }
-
-      console.log("🔐 Verificando autenticação...");
-      const { data: sessionData } = await supabase.auth.getSession();
-      console.log("📝 Sessão atual:", sessionData.session ? "Autenticado" : "Anônimo (correto para booking público)");
       
-      // Criar um booking para cada serviço selecionado sequencialmente
+      // Criar bookings sequenciais (um para cada serviço)
       const bookingPromises = selectedServices.map(async (service, index) => {
-        const serviceStartMinutes = hour * 60 + min + (index > 0 ? selectedServices.slice(0, index).reduce((sum, s) => sum + s.duration_minutes, 0) : 0);
-        const serviceEndMinutes = serviceStartMinutes + service.duration_minutes;
+        // Calcular offset de tempo para serviços sequenciais
+        const offsetMinutes = index > 0 
+          ? selectedServices.slice(0, index).reduce((sum, s) => sum + s.duration_minutes, 0) 
+          : 0;
+        
+        const serviceStartMinutes = hour * 60 + min + offsetMinutes;
         const serviceStartHour = Math.floor(serviceStartMinutes / 60);
         const serviceStartMin = serviceStartMinutes % 60;
+        
+        // Criar starts_at no formato ISO com timezone
+        const startsAt = new Date(selectedDate);
+        startsAt.setHours(serviceStartHour, serviceStartMin, 0, 0);
+        
+        // Calcular end_time para campos legacy (trigger vai recalcular ends_at)
+        const serviceEndMinutes = serviceStartMinutes + service.duration_minutes;
         const serviceEndHour = Math.floor(serviceEndMinutes / 60);
         const serviceEndMin = serviceEndMinutes % 60;
         
         const bookingData = {
           agenda_id: agenda.id,
-          booking_date: format(selectedDate, "yyyy-MM-dd"),
-          start_time: `${serviceStartHour.toString().padStart(2, "0")}:${serviceStartMin.toString().padStart(2, "0")}`,
-          end_time: `${serviceEndHour.toString().padStart(2, "0")}:${serviceEndMin.toString().padStart(2, "0")}`,
+          service_id: service.id,
           guest_name: validation.data.name,
           guest_email: validation.data.email || null,
           guest_phone: validation.data.phone,
-          service_id: service.id,
+          starts_at: startsAt.toISOString(),
+          booking_date: format(selectedDate, "yyyy-MM-dd"),
+          start_time: `${serviceStartHour.toString().padStart(2, "0")}:${serviceStartMin.toString().padStart(2, "0")}`,
+          end_time: `${serviceEndHour.toString().padStart(2, "0")}:${serviceEndMin.toString().padStart(2, "0")}`,
           status: "pending",
         };
         
-        console.log(`📝 Criando booking ${index + 1}:`, bookingData);
-        console.log(`📧 Email sendo enviado: "${bookingData.guest_email}"`);
-        console.log(`🔑 Supabase URL:`, import.meta.env.VITE_SUPABASE_URL);
-        console.log(`🔑 Using anon key:`, import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.substring(0, 20) + '...');
+        console.log(`Creating booking ${index + 1}:`, bookingData);
         
         const result = await supabase
           .from("bookings")
@@ -371,89 +311,58 @@ const PublicBooking = () => {
           .select()
           .single();
         
-        // Log detalhado do resultado
-        console.log(`📊 Result for booking ${index + 1}:`, {
-          success: !result.error,
-          errorCode: result.error?.code,
-          errorMessage: result.error?.message,
-          errorDetails: result.error?.details,
-          errorHint: result.error?.hint,
-          errorFull: result.error,
-          data: result.data
-        });
-        
         return result;
       });
 
       const bookingResults = await Promise.all(bookingPromises);
-      console.log("Resultados dos bookings:", bookingResults);
       
-      const firstBookingError = bookingResults.find(result => result.error);
-      if (firstBookingError?.error) {
-        console.error("❌ ERRO COMPLETO ao criar booking:", JSON.stringify(firstBookingError.error, null, 2));
-        console.error("Código do erro:", firstBookingError.error.code);
-        console.error("Mensagem do erro:", firstBookingError.error.message);
-        console.error("Detalhes do erro:", firstBookingError.error.details);
-        
-        // Check if it's a conflict error (exclusion constraint violation)
-        if (firstBookingError.error.code === "23P01" || 
-            firstBookingError.error.message?.includes("bookings_no_overlap") ||
-            firstBookingError.error.message?.includes("conflicting key value")) {
+      const firstError = bookingResults.find(result => result.error);
+      if (firstError?.error) {
+        // Detectar conflito de sobreposição
+        if (firstError.error.code === "23P01" || 
+            firstError.error.message?.includes("bookings_no_overlap")) {
           toast({
             title: "Horário acabou de ser ocupado",
             description: "Esse horário foi reservado por outro cliente. Atualizamos a lista para você.",
             variant: "destructive",
           });
-          // Refresh available slots
           await loadAvailableSlots();
           setSelectedTime("");
           setSubmitting(false);
           return;
         }
         
-        toast({
-          title: "Erro ao criar agendamento",
-          description: firstBookingError.error.message || "Erro desconhecido. Tente novamente.",
-          variant: "destructive",
-        });
-        setSubmitting(false);
-        return;
+        throw new Error(firstError.error.message || "Erro ao criar agendamento");
       }
 
-      console.log(`✅ ${bookingResults.length} booking(s) criado(s) com sucesso`);
-
-      // Notificar via webhook sobre todos os agendamentos criados
-      const notificationPromises = bookingResults.map(async (result, index) => {
-        if (result.data) {
-          try {
-            console.log(`📬 Enviando notificação ${index + 1}/${bookingResults.length} para booking ${result.data.id}`);
-            const webhookResponse = await supabase.functions.invoke("notify-booking", {
-              body: {
-                booking_id: result.data.id,
-                event_type: "created",
-              },
-            });
-            console.log(`✅ Notificação ${index + 1} enviada com sucesso`);
-            return webhookResponse;
-          } catch (webhookError) {
-            console.error(`❌ Erro ao enviar notificação ${index + 1}:`, webhookError);
-            // Não bloqueia o agendamento se o webhook falhar
-            return null;
+      // Notificar via webhook
+      await Promise.all(
+        bookingResults.map(async (result) => {
+          if (result.data) {
+            try {
+              await supabase.functions.invoke("notify-booking", {
+                body: {
+                  booking_id: result.data.id,
+                  event_type: "created",
+                },
+              });
+            } catch (webhookError) {
+              console.error("Webhook error:", webhookError);
+            }
           }
-        }
-      });
-      
-      await Promise.all(notificationPromises);
-      console.log("✅ Todas as notificações processadas");
+        })
+      );
 
+      // Recarregar slots após sucesso
+      await loadAvailableSlots();
+      
       setSuccess(true);
-      console.log("=== AGENDAMENTO CONCLUÍDO COM SUCESSO ===");
       toast({
         title: "Agendamento realizado!",
         description: "Você receberá uma confirmação em breve.",
       });
     } catch (error: any) {
-      console.error("=== ERRO NO AGENDAMENTO ===", error);
+      console.error("Booking error:", error);
       toast({
         title: "Erro ao agendar",
         description: error.message || "Ocorreu um erro ao processar seu agendamento.",
