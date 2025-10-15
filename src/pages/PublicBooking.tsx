@@ -13,6 +13,7 @@ import type { Agenda, Availability, Service } from "@/types/database";
 import { format, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { z } from "zod";
+import { motion } from "framer-motion";
 
 // Validation schema for booking form
 const bookingSchema = z.object({
@@ -391,15 +392,35 @@ const PublicBooking = () => {
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="max-w-md w-full text-center space-y-6">
-          <CheckCircle className="mx-auto h-20 w-20 text-green-500" />
-          <div>
+        <motion.div 
+          className="max-w-md w-full text-center space-y-6"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+          >
+            <CheckCircle className="mx-auto h-20 w-20 text-green-500" />
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
             <h2 className="text-3xl font-bold mb-2">Agendamento Confirmado!</h2>
             <p className="text-muted-foreground">
               Entraremos em contato via WhatsApp
             </p>
-          </div>
-          <div className="bg-card border rounded-2xl p-6 text-left space-y-3">
+          </motion.div>
+          <motion.div 
+            className="bg-card border rounded-2xl p-6 text-left space-y-3"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
             <div className="space-y-2">
               {selectedServices.map((service) => (
                 <p key={service.id} className="font-bold text-xl">{service.name}</p>
@@ -417,8 +438,8 @@ const PublicBooking = () => {
             <div className="text-lg font-bold text-primary">
               R$ {selectedServices.reduce((total, service) => total + Number(service.price), 0).toFixed(2)}
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </div>
     );
   }
@@ -464,7 +485,12 @@ const PublicBooking = () => {
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         {/* Step 1: Selecionar Serviços */}
         {services.length > 0 && (
-          <div className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow">
+          <motion.div 
+            className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
             <h2 className="text-lg font-bold mb-2 flex items-center gap-2">
               <span className="text-2xl">💼</span> Escolha até 2 serviços
             </h2>
@@ -545,12 +571,17 @@ const PublicBooking = () => {
                 </div>
               </div>
             )}
-          </div>
+          </motion.div>
         )}
 
         {/* Step 2: Selecionar Data */}
         {selectedServices.length > 0 && (
-          <div className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow animate-scale-in">
+          <motion.div 
+            className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+          >
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
               <span className="text-2xl">📅</span> Escolha a data
             </h2>
@@ -568,12 +599,17 @@ const PublicBooking = () => {
               locale={ptBR}
               className="rounded-xl border mx-auto"
             />
-          </div>
+          </motion.div>
         )}
 
         {/* Step 3: Selecionar Horário */}
         {selectedDate && selectedServices.length > 0 && (
-          <div className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow animate-scale-in">
+          <motion.div 
+            className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.2 }}
+          >
             <h2 className="text-lg font-bold mb-2 flex items-center gap-2">
               <span className="text-2xl">⏰</span> Escolha o horário
             </h2>
@@ -589,25 +625,36 @@ const PublicBooking = () => {
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-3">
-                {availableTimes.map((time) => (
-                  <Button
+                {availableTimes.map((time, index) => (
+                  <motion.div
                     key={time}
-                    variant={selectedTime === time ? "default" : "outline"}
-                    size="lg"
-                    onClick={() => setSelectedTime(time)}
-                    className="h-14 text-lg font-semibold rounded-xl"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.05, duration: 0.2 }}
                   >
-                    {time}
-                  </Button>
+                    <Button
+                      variant={selectedTime === time ? "default" : "outline"}
+                      size="lg"
+                      onClick={() => setSelectedTime(time)}
+                      className="w-full h-14 text-lg font-semibold rounded-xl"
+                    >
+                      {time}
+                    </Button>
+                  </motion.div>
                 ))}
               </div>
             )}
-          </div>
+          </motion.div>
         )}
 
         {/* Step 4: Formulário */}
         {selectedTime && selectedServices.length > 0 && (
-          <div className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow animate-scale-in">
+          <motion.div 
+            className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.3 }}
+          >
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
               <span className="text-2xl">✏️</span> Seus dados
             </h2>
@@ -654,7 +701,7 @@ const PublicBooking = () => {
                 {submitting ? "Agendando..." : "✅ Confirmar Agendamento"}
               </Button>
             </form>
-          </div>
+          </motion.div>
         )}
       </div>
     </div>
