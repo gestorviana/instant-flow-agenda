@@ -192,11 +192,10 @@ const PublicBooking = () => {
       const formattedDate = format(selectedDate, "yyyy-MM-dd");
       const serviceId = selectedServices[0].id;
 
-      console.log("Chamando list_available_slots:", {
-        p_agenda_id: agenda.id,
-        p_service_id: serviceId,
-        p_date: formattedDate,
-      });
+      console.log("=== CARREGANDO SLOTS DISPONÍVEIS ===");
+      console.log("Data selecionada:", formattedDate);
+      console.log("Agenda ID:", agenda.id);
+      console.log("Serviço ID:", serviceId);
 
       const { data, error } = await supabase.rpc("list_available_slots", {
         p_agenda_id: agenda.id,
@@ -205,7 +204,7 @@ const PublicBooking = () => {
       });
 
       if (error) {
-        console.error("Erro ao carregar slots:", error);
+        console.error("❌ Erro ao carregar slots:", error);
         toast({
           title: "Erro ao carregar horários",
           description: error.message,
@@ -215,22 +214,27 @@ const PublicBooking = () => {
         return;
       }
 
-      console.log("Slots recebidos:", data);
+      console.log("✅ Slots recebidos da RPC:", data);
+      console.log("Total de slots disponíveis:", data?.length || 0);
 
       if (data && data.length > 0) {
         const times = data.map((slot: any) => {
           const startDate = new Date(slot.slot_start);
-          return startDate.toLocaleTimeString("pt-BR", {
+          const timeStr = startDate.toLocaleTimeString("pt-BR", {
             hour: "2-digit",
             minute: "2-digit",
           });
+          console.log("Slot disponível:", timeStr, "=>", slot.slot_start);
+          return timeStr;
         });
+        console.log("Horários formatados para exibição:", times);
         setAvailableTimes(times);
       } else {
+        console.log("⚠️ Nenhum slot disponível para esta data");
         setAvailableTimes([]);
       }
     } catch (error) {
-      console.error("Erro ao carregar slots:", error);
+      console.error("❌ Erro ao carregar slots:", error);
       setAvailableTimes([]);
     } finally {
       setLoadingSlots(false);
