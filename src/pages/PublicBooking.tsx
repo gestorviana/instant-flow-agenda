@@ -75,9 +75,13 @@ const PublicBooking = () => {
 
   useEffect(() => {
     if (selectedDate && selectedServices.length > 0 && agenda) {
+      // Limpar horários antes de carregar novos
+      setAvailableTimes([]);
+      setSelectedTime("");
       loadAvailableSlots();
     } else if (!selectedDate || selectedServices.length === 0) {
       setAvailableTimes([]);
+      setSelectedTime("");
     }
   }, [selectedDate, selectedServices, agenda]);
 
@@ -197,10 +201,14 @@ const PublicBooking = () => {
       console.log("Agenda ID:", agenda.id);
       console.log("Serviço ID:", serviceId);
 
+      // Forçar nova chamada sem cache
       const { data, error } = await supabase.rpc("list_available_slots", {
         p_agenda_id: agenda.id,
         p_service_id: serviceId,
         p_date: formattedDate,
+      }, {
+        head: false,
+        count: undefined
       });
 
       if (error) {
