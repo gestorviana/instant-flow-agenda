@@ -9,6 +9,7 @@ export interface Agenda {
   updated_at: string;
   lunch_break_start: string | null;
   lunch_break_end: string | null;
+  slot_step_min: number;
 }
 
 export interface AgendaInsert {
