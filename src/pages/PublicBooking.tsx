@@ -75,10 +75,16 @@ const PublicBooking = () => {
 
   useEffect(() => {
     if (selectedDate && selectedServices.length > 0 && agenda) {
-      // Limpar horários antes de carregar novos
       setAvailableTimes([]);
       setSelectedTime("");
       loadAvailableSlots();
+      
+      // Auto-refresh a cada 30 segundos
+      const interval = setInterval(() => {
+        loadAvailableSlots();
+      }, 30000);
+      
+      return () => clearInterval(interval);
     } else if (!selectedDate || selectedServices.length === 0) {
       setAvailableTimes([]);
       setSelectedTime("");
