@@ -202,13 +202,22 @@ const PublicBooking = () => {
       const formattedDate = format(selectedDate, "yyyy-MM-dd");
       const serviceId = selectedServices[0].id;
 
+      console.log("=== CARREGANDO SLOTS ===");
+      console.log("Data:", formattedDate);
+      console.log("Agenda ID:", agenda.id);
+      console.log("Service ID:", serviceId);
+
       const { data, error } = await supabase.rpc("list_available_slots", {
         p_agenda_id: agenda.id,
         p_service_id: serviceId,
         p_date: formattedDate,
       });
 
+      console.log("Slots retornados:", data);
+      console.log("Erro:", error);
+
       if (error) {
+        console.error("Erro na RPC:", error);
         toast({
           title: "Erro ao carregar horários",
           description: error.message,
@@ -219,15 +228,18 @@ const PublicBooking = () => {
       }
 
       if (data && data.length > 0) {
+        // Converter slots para formato de horário simples
         const times = data.map((slot: any) => {
-          const startDate = new Date(slot.slot_start);
-          return startDate.toLocaleTimeString("pt-BR", {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
+          // slot_start já vem no timezone correto (America/Sao_Paulo) do banco
+          const slotTime = new Date(slot.slot_start);
+          const hours = slotTime.getHours().toString().padStart(2, '0');
+          const minutes = slotTime.getMinutes().toString().padStart(2, '0');
+          return `${hours}:${minutes}`;
         });
+        console.log("Horários formatados:", times);
         setAvailableTimes(times);
       } else {
+        console.log("Nenhum slot disponível");
         setAvailableTimes([]);
       }
     } catch (error) {
