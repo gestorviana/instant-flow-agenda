@@ -1,0 +1,96 @@
+-- Corrigir completamente a geração de slots com timezone correto
+DROP FUNCTION IF EXISTS public.list_available_slots(uuid, uuid, date);
+
+CREATE OR REPLACE FUNCTION public.list_available_slots(
+  p_agenda_id uuid,
+  p_service_id uuid,
+  p_date date
+)
+RETURNS TABLE(slot_start timestamptz, slot_end timestamptz)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_slot_step integer;
+  v_duration integer;
+  v_day_of_week integer;
+  v_lunch_start time;
+  v_lunch_end time;
+BEGIN
+  -- Obter configurações
+  SELECT a.slot_step_min, s.duration_minutes, a.lunch_break_start, a.lunch_break_end
+  INTO v_slot_step, v_duration, v_lunch_start, v_lunch_end
+  FROM agendas a
+  CROSS JOIN services s
+  WHERE a.id = p_agenda_id 
+    AND s.id = p_service_id
+    AND a.is_active = true
+    AND s.active = true;
+
+  IF v_slot_step IS NULL OR v_duration IS NULL THEN
+    RETURN;
+  END IF;
+
+  v_day_of_week := EXTRACT(DOW FROM p_date)::integer;
+
+  RETURN QUERY
+  WITH 
+  available_windows AS (
+    SELECT av.start_time, av.end_time
+    FROM availability av
+    WHERE av.agenda_id = p_agenda_id
+      AND av.day_of_week = v_day_of_week
+  ),
+  time_slots AS (
+    SELECT 
+      timezone('America/Sao_Paulo', (p_date::text || ' ' || (w.start_time + (g * v_slot_step || ' minutes')::interval)::text)::timestamp) AS slot_start,
+      timezone('America/Sao_Paulo', (p_date::text || ' ' || (w.start_time + ((g * v_slot_step + v_duration) || ' minutes')::interval)::text)::timestamp) AS slot_end
+    FROM available_windows w
+    CROSS JOIN generate_series(0, 1440, v_slot_step) g
+    WHERE (w.start_time + ((g * v_slot_step + v_duration) || ' minutes')::interval) <= w.end_time
+  )
+  SELECT ts.slot_start, ts.slot_end
+  FROM time_slots ts
+  WHERE 
+    -- Apenas slots futuros (comparando no timezone correto)
+    ts.slot_start > timezone('America/Sao_Paulo', NOW())
+    -- Não conflita com almoço
+    AND (
+      v_lunch_start IS NULL 
+      OR v_lunch_end IS NULL 
+      OR NOT (
+        (ts.slot_start AT TIME ZONE 'America/Sao_Paulo')::time >= v_lunch_start 
+        AND (ts.slot_start AT TIME ZONE 'America/Sao_Paulo')::time < v_lunch_end
+      )
+    )
+    -- Não há conflito com agendamentos
+    AND NOT EXISTS (
+      SELECT 1 
+      FROM bookings b
+      WHERE b.agenda_id = p_agenda_id
+        AND b.status IN ('pending', 'confirmed')
+        AND (
+          -- Verifica novos bookings (com starts_at/ends_at)
+          (b.starts_at IS NOT NULL AND b.ends_at IS NOT NULL AND (
+            (ts.slot_start >= b.starts_at AND ts.slot_start < b.ends_at)
+            OR (ts.slot_end > b.starts_at AND ts.slot_end <= b.ends_at)
+            OR (ts.slot_start <= b.starts_at AND ts.slot_end >= b.ends_at)
+          ))
+          OR
+          -- Verifica bookings legados (com booking_date + start_time/end_time)
+          (b.booking_date IS NOT NULL AND b.start_time IS NOT NULL AND b.end_time IS NOT NULL AND
+           b.booking_date = p_date AND (
+            ((ts.slot_start AT TIME ZONE 'America/Sao_Paulo')::time >= b.start_time 
+             AND (ts.slot_start AT TIME ZONE 'America/Sao_Paulo')::time < b.end_time)
+            OR ((ts.slot_end AT TIME ZONE 'America/Sao_Paulo')::time > b.start_time 
+                AND (ts.slot_end AT TIME ZONE 'America/Sao_Paulo')::time <= b.end_time)
+            OR ((ts.slot_start AT TIME ZONE 'America/Sao_Paulo')::time <= b.start_time 
+                AND (ts.slot_end AT TIME ZONE 'America/Sao_Paulo')::time >= b.end_time)
+          ))
+        )
+    )
+  ORDER BY ts.slot_start;
+END;
+$$;
