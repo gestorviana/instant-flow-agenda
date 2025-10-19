@@ -228,13 +228,14 @@ const PublicBooking = () => {
       }
 
       if (data && data.length > 0) {
-        // Converter slots para formato de horário simples
+        // Extrair hora e minuto diretamente do timestamp sem conversão de timezone
         const times = data.map((slot: any) => {
-          // slot_start já vem no timezone correto (America/Sao_Paulo) do banco
-          const slotTime = new Date(slot.slot_start);
-          const hours = slotTime.getHours().toString().padStart(2, '0');
-          const minutes = slotTime.getMinutes().toString().padStart(2, '0');
-          return `${hours}:${minutes}`;
+          // slot_start vem como "2025-10-20T09:00:00-03:00" (America/Sao_Paulo)
+          // Extrair apenas HH:MM sem conversão de timezone
+          const timestamp = slot.slot_start;
+          // Pegar a parte "HH:MM" do timestamp ISO (posição 11-15)
+          const time = timestamp.substring(11, 16);
+          return time;
         });
         console.log("Horários formatados:", times);
         setAvailableTimes(times);
