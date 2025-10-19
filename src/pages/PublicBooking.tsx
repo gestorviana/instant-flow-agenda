@@ -1,404 +1,192 @@
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
-import { Calendar } from "@/components/ui/calendar";
-import { useToast } from "@/hooks/use-toast";
-import { Calendar as CalendarIcon, Clock, CheckCircle } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { Agenda, Availability, Service } from "@/types/database";
-import { format, startOfDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { z } from "zod";
-import { motion } from "framer-motion";
+import { Calendar as CalendarIcon, Clock, CheckCircle2, Zap } from "lucide-react";
+import { toast } from "sonner";
 
-// Validation schema for booking form
-const bookingSchema = z.object({
-  name: z.string()
-    .min(1, "Nome é obrigatório")
-    .min(2, "Nome deve ter pelo menos 2 caracteres")
-    .max(100, "Nome muito longo"),
-  email: z.string()
-    .email("Email inválido")
-    .max(255, "Email muito longo")
-    .optional()
-    .or(z.literal("")),
-  phone: z.string()
-    .min(1, "WhatsApp é obrigatório")
-    .min(8, "WhatsApp muito curto")
-    .max(20, "WhatsApp muito longo")
-}).refine(
-  (data) => data.email || data.phone,
-  {
-    message: "Forneça pelo menos WhatsApp ou email",
-    path: ["phone"],
+// ====== TIPOS ======
+interface Agenda {
+  id: string;
+  title: string;
+  description?: string | null;
+  slug: string;
+  is_active: boolean;
+  user_id: string;
+}
+
+interface Service {
+  id: string;
+  name: string;
+  duration_minutes: number;
+  price: number | null;
+}
+
+interface Slot { 
+  slot_start: string; 
+  slot_end: string; 
+}
+
+// ====== UTILS ======
+function formatCurrencyBRL(value: number | null | undefined) {
+  if (value == null) return "";
+  try { 
+    return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); 
+  } catch { 
+    return `${value}`; 
   }
-);
+}
 
-const PublicBooking = () => {
+function todayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`; // YYYY-MM-DD
+}
+
+// ====== COMPONENTE PRINCIPAL ======
+export default function PublicBooking() {
+  const navigate = useNavigate();
   const { slug } = useParams();
-  const [agenda, setAgenda] = useState<Agenda | null>(null);
-  const [profile, setProfile] = useState<any>(null);
-  const [services, setServices] = useState<Service[]>([]);
-  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
-  const [availability, setAvailability] = useState<Availability[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date>();
-  const [selectedTime, setSelectedTime] = useState<string>("");
-  const [availableTimes, setAvailableTimes] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [loadingSlots, setLoadingSlots] = useState(false);
-  const [formData, setFormData] = useState({
-    name: "",
-    phone: "",
-    email: "",
-  });
-  const { toast } = useToast();
 
+  const [loading, setLoading] = useState(true);
+  const [agenda, setAgenda] = useState<Agenda | null>(null);
+  const [services, setServices] = useState<Service[]>([]);
+
+  const [selectedServiceId, setSelectedServiceId] = useState<string>("");
+  const selectedService = useMemo(() => services.find(s => s.id === selectedServiceId) ?? null, [services, selectedServiceId]);
+
+  const [date, setDate] = useState<string>(todayStr());
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
+  const [clientName, setClientName] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [startTime, setStartTime] = useState<string>("");
+
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string>("");
+  const [success, setSuccess] = useState(false);
+
+  // 1) Carregar agenda e serviços pelo slug
   useEffect(() => {
-    if (slug) {
-      loadAgenda();
+    let mounted = true;
+    async function load() {
+      setLoading(true);
+      setErrorMsg("");
+      try {
+        const { data: ag, error: agErr } = await supabase
+          .from("agendas")
+          .select("id, title, description, slug, is_active, user_id")
+          .eq("slug", slug)
+          .eq("is_active", true)
+          .single();
+        if (agErr) throw agErr;
+        if (!ag) throw new Error("Agenda não encontrada ou inativa.");
+        if (!mounted) return;
+        setAgenda(ag as Agenda);
+
+        const { data: servs, error: sErr } = await supabase
+          .from("services")
+          .select("id, name, duration_minutes, price")
+          .eq("user_id", ag.user_id)
+          .eq("active", true)
+          .order("name", { ascending: true });
+        if (sErr) throw sErr;
+        if (!mounted) return;
+        setServices((servs || []) as Service[]);
+        // Seleciona o primeiro serviço por padrão
+        if (servs && servs.length > 0) setSelectedServiceId(servs[0].id);
+      } catch (e: any) {
+        console.error(e);
+        if (!mounted) return;
+        setErrorMsg(e?.message || "Erro ao carregar agenda.");
+      } finally {
+        if (mounted) setLoading(false);
+      }
     }
+    if (slug) load();
+    return () => { mounted = false; };
   }, [slug]);
 
+  // 2) Buscar slots sempre que agenda/serviço/data mudarem
   useEffect(() => {
-    if (agenda) {
-      loadAvailability();
-      loadServices();
-      loadProfile();
-    }
-  }, [agenda]);
-
-  useEffect(() => {
-    if (selectedDate && selectedServices.length > 0 && agenda) {
-      setAvailableTimes([]);
-      setSelectedTime("");
-      loadAvailableSlots();
-      
-      // Auto-refresh a cada 30 segundos
-      const interval = setInterval(() => {
-        loadAvailableSlots();
-      }, 30000);
-      
-      return () => clearInterval(interval);
-    } else if (!selectedDate || selectedServices.length === 0) {
-      setAvailableTimes([]);
-      setSelectedTime("");
-    }
-  }, [selectedDate, selectedServices, agenda]);
-
-  const loadAgenda = async () => {
-    try {
-      console.log("=== CARREGANDO AGENDA ===");
-      console.log("Slug recebido:", slug);
-      
-      if (!slug) {
-        throw new Error("Slug inválido");
-      }
-
-      console.log("Buscando agenda com slug:", slug);
-      
-      const { data, error } = await supabase
-        .from("agendas")
-        .select("*")
-        .eq("slug", slug)
-        .eq("is_active", true)
-        .maybeSingle();
-
-      console.log("Resultado da busca:", { data, error });
-
-      if (error) {
-        console.error("Erro na query:", error);
-        throw error;
-      }
-      
-      if (!data) {
-        console.error("Nenhuma agenda encontrada com slug:", slug);
-        throw new Error("Agenda não encontrada");
-      }
-      
-      console.log("Agenda carregada com sucesso:", data);
-      setAgenda(data);
-    } catch (error: any) {
-      console.error("Erro ao carregar agenda:", error);
-      toast({
-        title: "Agenda não encontrada",
-        description: "Esta agenda não está disponível.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadAvailability = async () => {
-    try {
-      const { data, error } = await (supabase as any)
-        .from("availability")
-        .select("*")
-        .eq("agenda_id", agenda!.id);
-
-      if (error) throw error;
-      setAvailability(data || []);
-    } catch (error: any) {
-      console.error("Erro ao carregar disponibilidade:", error);
-    }
-  };
-
-  const loadServices = async () => {
-    try {
-      const { data, error } = await (supabase as any)
-        .from("services")
-        .select("*")
-        .eq("user_id", agenda!.user_id)
-        .eq("active", true);
-
-      if (error) throw error;
-      setServices(data || []);
-    } catch (error: any) {
-      console.error("Erro ao carregar serviços:", error);
-    }
-  };
-
-  const loadProfile = async () => {
-    try {
-      console.log("=== CARREGANDO PERFIL ===");
-      console.log("User ID da agenda:", agenda!.user_id);
-      
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", agenda!.user_id)
-        .maybeSingle();
-
-      console.log("Perfil carregado:", { data, error });
-
-      if (error) {
-        console.error("Erro ao carregar perfil:", error);
-        throw error;
-      }
-      
-      if (data) {
-        console.log("Foto do perfil:", data.photo_url);
-        setProfile(data);
-      }
-    } catch (error: any) {
-      console.error("Erro ao carregar perfil:", error);
-    }
-  };
-
-  const loadAvailableSlots = async () => {
-    if (!selectedDate || !agenda || selectedServices.length === 0) {
-      setAvailableTimes([]);
-      return;
-    }
-
-    setLoadingSlots(true);
-    try {
-      const formattedDate = format(selectedDate, "yyyy-MM-dd");
-      const serviceId = selectedServices[0].id;
-
-      console.log("=== CARREGANDO SLOTS ===");
-      console.log("Data:", formattedDate);
-      console.log("Agenda ID:", agenda.id);
-      console.log("Service ID:", serviceId);
-
-      const { data, error } = await supabase.rpc("list_available_slots", {
-        p_agenda_id: agenda.id,
-        p_service_id: serviceId,
-        p_date: formattedDate,
-      });
-
-      console.log("Slots retornados:", data);
-      console.log("Erro:", error);
-
-      if (error) {
-        console.error("Erro na RPC:", error);
-        toast({
-          title: "Erro ao carregar horários",
-          description: error.message,
-          variant: "destructive",
+    async function fetchSlots() {
+      if (!agenda?.id || !selectedServiceId || !date) return;
+      setLoadingSlots(true);
+      setErrorMsg("");
+      try {
+        const { data, error } = await supabase.rpc("list_available_slots", {
+          p_agenda_id: agenda.id,
+          p_service_id: selectedServiceId,
+          p_date: date,
         });
-        setAvailableTimes([]);
-        return;
+        if (error) throw error;
+        setSlots((data || []) as Slot[]);
+        setStartTime(""); // reset seleção ao recarregar
+      } catch (e: any) {
+        console.error(e);
+        setErrorMsg(e?.message || "Erro ao carregar horários.");
+      } finally {
+        setLoadingSlots(false);
       }
-
-      if (data && data.length > 0) {
-        // Extrair hora e minuto diretamente do timestamp sem conversão de timezone
-        const times = data.map((slot: any) => {
-          // slot_start vem como "2025-10-20T09:00:00-03:00" (America/Sao_Paulo)
-          // Extrair apenas HH:MM sem conversão de timezone
-          const timestamp = slot.slot_start;
-          // Pegar a parte "HH:MM" do timestamp ISO (posição 11-15)
-          const time = timestamp.substring(11, 16);
-          return time;
-        });
-        console.log("Horários formatados:", times);
-        setAvailableTimes(times);
-      } else {
-        console.log("Nenhum slot disponível");
-        setAvailableTimes([]);
-      }
-    } catch (error) {
-      console.error("Erro ao carregar slots:", error);
-      setAvailableTimes([]);
-    } finally {
-      setLoadingSlots(false);
     }
-  };
+    fetchSlots();
+  }, [agenda?.id, selectedServiceId, date]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    
-    if (!selectedDate || !selectedTime || !agenda || selectedServices.length === 0) {
-      toast({
-        title: "Dados incompletos",
-        description: "Por favor, preencha todos os campos.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Validate form data
-    const validation = bookingSchema.safeParse({
-      name: formData.name.trim(),
-      email: formData.email.trim(),
-      phone: formData.phone.trim()
-    });
-
-    if (!validation.success) {
-      const errorMessage = validation.error.errors[0]?.message || "Dados inválidos";
-      toast({
-        title: "Dados inválidos",
-        description: errorMessage,
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!agenda?.id || !selectedService || !date || !startTime) return;
 
     setSubmitting(true);
-
+    setErrorMsg("");
     try {
-      const [hour, min] = selectedTime.split(":").map(Number);
+      // Extrair data e hora do slot para os campos legacy obrigatórios
+      const slotDate = new Date(startTime);
+      const bookingDate = slotDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      const startTimeStr = slotDate.toTimeString().split(' ')[0]; // HH:MM:SS
       
-      // Criar bookings sequenciais (um para cada serviço)
-      const bookingPromises = selectedServices.map(async (service, index) => {
-        // Calcular offset de tempo para serviços sequenciais
-        const offsetMinutes = index > 0 
-          ? selectedServices.slice(0, index).reduce((sum, s) => sum + s.duration_minutes, 0) 
-          : 0;
-        
-        const serviceStartMinutes = hour * 60 + min + offsetMinutes;
-        const serviceStartHour = Math.floor(serviceStartMinutes / 60);
-        const serviceStartMin = serviceStartMinutes % 60;
-        
-        // Criar starts_at no formato ISO com timezone
-        const startsAt = new Date(selectedDate);
-        startsAt.setHours(serviceStartHour, serviceStartMin, 0, 0);
-        
-        // Enviar starts_at + campos legacy obrigatórios
-        // O trigger sync_booking_timestamps vai sincronizar tudo automaticamente
-        const bookingData = {
-          agenda_id: agenda.id,
-          service_id: service.id,
-          guest_name: validation.data.name,
-          guest_email: validation.data.email || null,
-          guest_phone: validation.data.phone,
-          starts_at: startsAt.toISOString(),
-          booking_date: format(selectedDate, "yyyy-MM-dd"),
-          start_time: `${serviceStartHour.toString().padStart(2, "0")}:${serviceStartMin.toString().padStart(2, "0")}`,
-          end_time: "00:00", // Placeholder - trigger vai calcular
-          status: "pending",
-        };
-        
-        const result = await supabase
-          .from("bookings")
-          .insert(bookingData)
-          .select()
-          .single();
-        
-        return result;
-      });
+      const { error } = await supabase.from("bookings").insert([{
+        agenda_id: agenda.id,
+        service_id: selectedService.id,
+        guest_name: clientName,
+        guest_email: clientEmail || null,
+        guest_phone: clientPhone || null,
+        starts_at: startTime, // timestamp with timezone do slot
+        booking_date: bookingDate, // campo legacy obrigatório
+        start_time: startTimeStr, // campo legacy obrigatório
+        end_time: '00:00:00', // placeholder - trigger vai calcular
+        status: "pending",
+      }]);
+      if (error) throw error;
 
-      const bookingResults = await Promise.all(bookingPromises);
-      
-      const firstError = bookingResults.find(result => result.error);
-      if (firstError?.error) {
-        // Detectar conflito de sobreposição
-        if (firstError.error.code === "23P01" || 
-            firstError.error.message?.includes("bookings_no_overlap")) {
-          toast({
-            title: "Horário acabou de ser ocupado",
-            description: "Esse horário foi reservado por outro cliente. Atualizamos a lista para você.",
-            variant: "destructive",
-          });
-          await loadAvailableSlots();
-          setSelectedTime("");
-          setSubmitting(false);
-          return;
-        }
-        
-        throw new Error(firstError.error.message || "Erro ao criar agendamento");
-      }
-
-      // Notificar via webhook
-      await Promise.all(
-        bookingResults.map(async (result) => {
-          if (result.data) {
-            try {
-              await supabase.functions.invoke("notify-booking", {
-                body: {
-                  booking_id: result.data.id,
-                  event_type: "created",
-                },
-              });
-            } catch (webhookError) {
-              console.error("Webhook error:", webhookError);
-            }
-          }
-        })
-      );
-
-      // Recarregar slots após sucesso
-      await loadAvailableSlots();
-      
       setSuccess(true);
-      toast({
-        title: "Agendamento realizado!",
-        description: "Você receberá uma confirmação em breve.",
-      });
-    } catch (error: any) {
-      console.error("Booking error:", error);
-      toast({
-        title: "Erro ao agendar",
-        description: error.message || "Ocorreu um erro ao processar seu agendamento.",
-        variant: "destructive",
-      });
+      toast.success("Agendamento confirmado!");
+    } catch (e: any) {
+      console.error(e);
+      setErrorMsg(e?.message || "Não foi possível criar o agendamento.");
+      toast.error("Erro ao criar agendamento");
     } finally {
       setSubmitting(false);
     }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Carregando...</p>
-      </div>
-    );
   }
 
-  if (!agenda) {
+  // ====== RENDER ======
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="max-w-md">
-          <CardContent className="pt-6 text-center">
-            <p className="text-muted-foreground">Agenda não encontrada</p>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground">Carregando…</div>
+    );
+  }
+  
+  if (errorMsg && !agenda) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <div className="text-2xl font-semibold">Ops…</div>
+        <p className="text-muted-foreground">{errorMsg}</p>
+        <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground">
+          Tentar novamente
+        </button>
       </div>
     );
   }
@@ -406,320 +194,207 @@ const PublicBooking = () => {
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <motion.div 
-          className="max-w-md w-full text-center space-y-6"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-        >
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-          >
-            <CheckCircle className="mx-auto h-20 w-20 text-green-500" />
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <h2 className="text-3xl font-bold mb-2">Agendamento Confirmado!</h2>
-            <p className="text-muted-foreground">
-              Entraremos em contato via WhatsApp
-            </p>
-          </motion.div>
-          <motion.div 
-            className="bg-card border rounded-2xl p-6 text-left space-y-3"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-          >
-            <div className="space-y-2">
-              {selectedServices.map((service) => (
-                <p key={service.id} className="font-bold text-xl">{service.name}</p>
-              ))}
-            </div>
-            <p className="text-sm text-muted-foreground">{agenda.title}</p>
+        <div className="max-w-md w-full text-center space-y-6">
+          <CheckCircle2 className="mx-auto h-20 w-20 text-green-500" />
+          <h2 className="text-3xl font-bold mb-2">Agendamento Confirmado!</h2>
+          <p className="text-muted-foreground">Entraremos em contato via WhatsApp</p>
+          <div className="bg-card border rounded-2xl p-6 text-left space-y-3">
+            <p className="font-bold text-xl">{selectedService?.name}</p>
+            <p className="text-sm text-muted-foreground">{agenda?.title}</p>
             <div className="flex items-center gap-2 text-muted-foreground">
               <CalendarIcon className="h-5 w-5" />
-              <span>{format(selectedDate!, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
+              <span>{new Date(date).toLocaleDateString('pt-BR')}</span>
             </div>
             <div className="flex items-center gap-2 text-muted-foreground">
               <Clock className="h-5 w-5" />
-              <span className="text-2xl font-bold text-foreground">{selectedTime}</span>
+              <span className="text-2xl font-bold text-foreground">
+                {new Date(startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}
+              </span>
             </div>
-            <div className="text-lg font-bold text-primary">
-              R$ {selectedServices.reduce((total, service) => total + Number(service.price), 0).toFixed(2)}
-            </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header with Professional Photo */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-background to-accent/10 border-b">
-        <div className="absolute inset-0 bg-grid-white/5 [mask-image:linear-gradient(0deg,white,transparent)]" />
-        <div className="max-w-2xl mx-auto px-4 py-12 relative">
-          <div className="text-center space-y-4 animate-fade-in">
-            {/* Avatar sempre visível */}
-            <div className="flex justify-center mb-6">
-              <div className="relative">
-                <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl" />
-                <Avatar className="h-24 w-24 border-4 border-background shadow-2xl relative">
-                  {profile?.photo_url ? (
-                    <AvatarImage src={profile.photo_url} alt={profile.full_name || agenda.title} />
-                  ) : null}
-                  <AvatarFallback className="text-2xl font-bold bg-primary text-primary-foreground">
-                    {(profile?.full_name || agenda.title).substring(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              </div>
-            </div>
-            <div className="inline-block">
-              <div className="flex items-center gap-2 text-primary mb-2">
-                <div className="h-px w-8 bg-primary/50" />
-                <span className="text-sm font-medium tracking-wider uppercase">Agendamento Online</span>
-                <div className="h-px w-8 bg-primary/50" />
-              </div>
-            </div>
-            <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-              {profile?.full_name || agenda.title}
-            </h1>
-            {agenda.description && (
-              <p className="text-lg text-muted-foreground max-w-md mx-auto">{agenda.description}</p>
+      {/* Header simples */}
+      <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 font-bold text-xl">
+            <Zap className="h-6 w-6 text-primary" />
+            <span>Flash Agenda</span>
+          </div>
+          <button className="text-sm px-3 py-1.5 rounded-md border hover:bg-muted" onClick={() => navigate("/auth")}>
+            Área do Profissional
+          </button>
+        </div>
+      </header>
+
+      {/* Conteúdo */}
+      <main className="container mx-auto px-4 py-8">
+        <div className="max-w-3xl mx-auto">
+          {/* Cabeçalho da agenda */}
+          <div className="mb-6">
+            <h1 className="text-2xl md:text-3xl font-bold mb-1">{agenda?.title}</h1>
+            {agenda?.description && (
+              <p className="text-muted-foreground">{agenda.description}</p>
             )}
           </div>
-        </div>
-      </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Step 1: Selecionar Serviços */}
-        {services.length > 0 && (
-          <motion.div 
-            className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <h2 className="text-lg font-bold mb-2 flex items-center gap-2">
-              <span className="text-2xl">💼</span> Escolha até 2 serviços
-            </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              {selectedServices.length}/2 serviços selecionados
-            </p>
-            <div className="grid gap-3">
-              {services.map((service) => {
-                const isSelected = selectedServices.some(s => s.id === service.id);
-                const canSelect = selectedServices.length < 2 || isSelected;
-                
-                return (
+          {/* Passo 1: Serviço */}
+          <section className="mb-8 p-4 md:p-6 border rounded-xl bg-card shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <Clock className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold">1) Escolha o serviço</h2>
+            </div>
+            {services.length === 0 ? (
+              <p className="text-muted-foreground">Nenhum serviço disponível no momento.</p>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-3">
+                {services.map((s) => (
                   <button
-                    type="button"
-                    key={service.id}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      console.log('Clicou no serviço:', service.name, 'Selecionado:', isSelected);
-                      
-                      if (isSelected) {
-                        const newServices = selectedServices.filter(s => s.id !== service.id);
-                        console.log('Removendo serviço. Novos selecionados:', newServices);
-                        setSelectedServices(newServices);
-                        setSelectedDate(undefined);
-                        setSelectedTime("");
-                      } else if (selectedServices.length < 2) {
-                        const newServices = [...selectedServices, service];
-                        console.log('Adicionando serviço. Novos selecionados:', newServices);
-                        setSelectedServices(newServices);
-                        setSelectedDate(undefined);
-                        setSelectedTime("");
-                      }
-                    }}
-                    className={`text-left p-4 rounded-xl border-2 transition-all ${
-                      isSelected
-                        ? "border-primary bg-primary/10 shadow-lg"
-                        : canSelect
-                        ? "border-border hover:border-primary/50 hover:shadow-md cursor-pointer"
-                        : "border-border opacity-50 cursor-not-allowed"
-                    }`}
+                    key={s.id}
+                    className={`text-left p-4 rounded-xl border transition-shadow hover:shadow ${selectedServiceId === s.id ? "border-primary ring-2 ring-primary/20" : ""}`}
+                    onClick={() => setSelectedServiceId(s.id)}
                   >
-                    <div className="flex justify-between items-start">
-                      <div className="flex gap-3">
-                        <div className={`flex-shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center ${
-                          isSelected ? "border-primary bg-primary" : "border-border"
-                        }`}>
-                          {isSelected && <span className="text-primary-foreground text-sm">✓</span>}
-                        </div>
-                        <div>
-                          <p className="font-bold">{service.name}</p>
-                          <p className="text-sm text-muted-foreground">{service.description}</p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            ⏱️ {service.duration_minutes} minutos
-                          </p>
-                        </div>
-                      </div>
-                      <p className="text-lg font-bold text-primary">
-                        R$ {service.price.toFixed(2)}
-                      </p>
+                    <div className="font-medium">{s.name}</div>
+                    <div className="text-sm text-muted-foreground">
+                      Duração: {s.duration_minutes} min {s.price != null && `• ${formatCurrencyBRL(s.price)}`}
                     </div>
                   </button>
-                );
-              })}
-            </div>
-            {selectedServices.length > 0 && (
-              <div className="mt-4 pt-4 border-t bg-accent/50 -mx-6 -mb-6 px-6 py-4 rounded-b-2xl">
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold">⏱️ Duração total:</span>
-                  <span className="font-bold text-lg">
-                    {selectedServices.reduce((total, s) => total + s.duration_minutes, 0)} min
-                  </span>
-                </div>
-                <div className="flex justify-between items-center mt-2">
-                  <span className="font-semibold">💰 Total:</span>
-                  <span className="text-xl font-bold text-primary">
-                    R$ {selectedServices.reduce((total, s) => total + Number(s.price), 0).toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            )}
-          </motion.div>
-        )}
-
-        {/* Step 2: Selecionar Data */}
-        {selectedServices.length > 0 && (
-          <motion.div 
-            className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.1 }}
-          >
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <span className="text-2xl">📅</span> Escolha a data
-            </h2>
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={setSelectedDate}
-              disabled={(date) => {
-                const dayOfWeek = date.getDay();
-                const hasAvailability = availability.some((a) => a.day_of_week === dayOfWeek);
-                const oneWeekFromNow = new Date();
-                oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
-                return date < startOfDay(new Date()) || date > oneWeekFromNow || !hasAvailability;
-              }}
-              locale={ptBR}
-              className="rounded-xl border mx-auto"
-            />
-          </motion.div>
-        )}
-
-        {/* Step 3: Selecionar Horário */}
-        {selectedDate && selectedServices.length > 0 && (
-          <motion.div 
-            className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-          >
-            <h2 className="text-lg font-bold mb-2 flex items-center gap-2">
-              <span className="text-2xl">⏰</span> Escolha o horário
-            </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
-            </p>
-            {availableTimes.length === 0 ? (
-              <div className="text-center py-8">
-                <Clock className="mx-auto h-12 w-12 text-muted-foreground/50 mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  Nenhum horário disponível para esta data
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-3">
-                {availableTimes.map((time, index) => (
-                  <motion.div
-                    key={time}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: index * 0.05, duration: 0.2 }}
-                  >
-                    <Button
-                      variant={selectedTime === time ? "default" : "outline"}
-                      size="lg"
-                      onClick={() => setSelectedTime(time)}
-                      className="w-full h-14 text-lg font-semibold rounded-xl"
-                    >
-                      {time}
-                    </Button>
-                  </motion.div>
                 ))}
               </div>
             )}
-          </motion.div>
-        )}
+          </section>
 
-        {/* Step 4: Formulário */}
-        {selectedTime && selectedServices.length > 0 && (
-          <motion.div 
-            className="bg-card border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.3 }}
-          >
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <span className="text-2xl">✏️</span> Seus dados
-            </h2>
+          {/* Passo 2: Data e horário */}
+          <section className="mb-8 p-4 md:p-6 border rounded-xl bg-card shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <CalendarIcon className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold">2) Selecione data e horário</h2>
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-4 md:items-end">
+              <div className="flex-1">
+                <label className="block text-sm mb-1">Data</label>
+                <input
+                  type="date"
+                  className="w-full rounded-lg border px-3 py-2 bg-background"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  min={todayStr()}
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm mb-1">Serviço selecionado</label>
+                <input
+                  type="text"
+                  className="w-full rounded-lg border px-3 py-2 bg-muted cursor-not-allowed"
+                  value={selectedService ? `${selectedService.name} • ${selectedService.duration_minutes} min` : "—"}
+                  readOnly
+                />
+              </div>
+            </div>
+
+            <div className="mt-4">
+              {loadingSlots ? (
+                <div className="text-sm text-muted-foreground">Carregando horários…</div>
+              ) : slots.length === 0 ? (
+                <div className="text-sm text-muted-foreground">Sem horários disponíveis para esta data.</div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {slots.map((s) => {
+                    const displayTime = new Date(s.slot_start).toLocaleTimeString('pt-BR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      timeZone: 'America/Sao_Paulo'
+                    });
+                    return (
+                      <button
+                        key={`${s.slot_start}-${s.slot_end}`}
+                        className={`px-3 py-2 rounded-full border text-sm hover:shadow transition ${startTime === s.slot_start ? "border-primary ring-2 ring-primary/20" : ""}`}
+                        onClick={() => setStartTime(s.slot_start)}
+                      >
+                        {displayTime}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Passo 3: Dados do cliente */}
+          <section className="mb-8 p-4 md:p-6 border rounded-xl bg-card shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <CheckCircle2 className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold">3) Confirme seus dados</h2>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                  className="h-12 rounded-xl text-base"
-                  placeholder="Seu nome"
-                />
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm mb-1">Nome completo</label>
+                  <input
+                    className="w-full rounded-lg border px-3 py-2 bg-background"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1">Telefone (WhatsApp)</label>
+                  <input
+                    className="w-full rounded-lg border px-3 py-2 bg-background"
+                    value={clientPhone}
+                    onChange={(e) => setClientPhone(e.target.value)}
+                    placeholder="(00) 90000-0000"
+                    required
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm mb-1">E-mail (opcional)</label>
+                  <input
+                    type="email"
+                    className="w-full rounded-lg border px-3 py-2 bg-background"
+                    value={clientEmail}
+                    onChange={(e) => setClientEmail(e.target.value)}
+                    placeholder="voce@email.com"
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email (opcional)</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="h-12 rounded-xl text-base"
-                  placeholder="seuemail@exemplo.com (opcional)"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">WhatsApp</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  required
-                  className="h-12 rounded-xl text-base"
-                  placeholder="(00) 00000-0000"
-                />
-              </div>
-              <Button
-                type="submit" 
-                className="w-full h-14 text-lg font-bold rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-[1.02]" 
-                disabled={submitting}
+
+              {errorMsg && (
+                <div className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
+                  {errorMsg}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={submitting || !agenda || !selectedService || !date || !startTime}
+                className="w-full md:w-auto px-5 py-3 rounded-xl bg-primary text-primary-foreground font-medium hover:opacity-90 disabled:opacity-50"
               >
-                {submitting ? "Agendando..." : "✅ Confirmar Agendamento"}
-              </Button>
+                {submitting ? "Reservando…" : "Confirmar agendamento"}
+              </button>
             </form>
-          </motion.div>
-        )}
-      </div>
+          </section>
+
+          {/* Observação */}
+          <p className="text-xs text-muted-foreground text-center">
+            Ao confirmar, você concorda com a política da agenda. Em caso de imprevistos, cancele com antecedência.
+          </p>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t py-8 mt-12">
+        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
+          © {new Date().getFullYear()} Flash Agenda
+        </div>
+      </footer>
     </div>
   );
-};
-
-export default PublicBooking;
+}
