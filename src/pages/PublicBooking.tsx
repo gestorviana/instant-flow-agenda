@@ -222,7 +222,7 @@ export default function PublicBooking() {
       <header className="border-b bg-card sticky top-0 z-10">
         <div className="container mx-auto px-4 h-14 flex items-center gap-3">
           <button 
-            onClick={() => navigate(`/agendar/${slug}`)} 
+            onClick={() => navigate("/")} 
             className="p-1.5 hover:bg-muted rounded-lg transition"
           >
             <ChevronLeft className="h-5 w-5" />
