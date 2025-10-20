@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Agendas from "./pages/Agendas";
 import AgendaConfig from "./pages/AgendaConfig";
+import ServiceSelect from "./pages/ServiceSelect";
 import PublicBooking from "./pages/PublicBooking";
 import Bookings from "./pages/Bookings";
 import Services from "./pages/Services";
@@ -34,7 +35,8 @@ const App = () => (
           <Route path="/financeiro" element={<Financial />} />
           <Route path="/clientes" element={<Clients />} />
           <Route path="/config" element={<Config />} />
-          <Route path="/agendar/:slug" element={<PublicBooking />} />
+          <Route path="/agendar/:slug" element={<ServiceSelect />} />
+          <Route path="/agendar/:slug/:serviceId" element={<PublicBooking />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

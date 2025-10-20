@@ -48,7 +48,7 @@ function formatTime(isoString: string) {
 // ====== COMPONENTE PRINCIPAL ======
 export default function PublicBooking() {
   const navigate = useNavigate();
-  const { slug } = useParams();
+  const { slug, serviceId } = useParams();
 
   const [loading, setLoading] = useState(true);
   const [agenda, setAgenda] = useState<Agenda | null>(null);
@@ -82,19 +82,20 @@ export default function PublicBooking() {
         if (!mounted) return;
         setAgenda(ag as Agenda);
 
-        // Buscar primeiro serviço ativo
-        const { data: servs, error: sErr } = await supabase
+        // Buscar serviço específico
+        if (!serviceId) {
+          throw new Error("Serviço não especificado.");
+        }
+        const { data: serv, error: sErr } = await supabase
           .from("services")
           .select("id, name, duration_minutes, price")
-          .eq("user_id", ag.user_id)
+          .eq("id", serviceId)
           .eq("active", true)
-          .order("name", { ascending: true })
-          .limit(1);
+          .single();
         if (sErr) throw sErr;
+        if (!serv) throw new Error("Serviço não encontrado.");
         if (!mounted) return;
-        if (servs && servs.length > 0) {
-          setService(servs[0] as Service);
-        }
+        setService(serv as Service);
 
         // Buscar nome do profissional
         const { data: profile, error: pErr } = await supabase
@@ -112,9 +113,9 @@ export default function PublicBooking() {
         if (mounted) setLoading(false);
       }
     }
-    if (slug) load();
+    if (slug && serviceId) load();
     return () => { mounted = false; };
-  }, [slug]);
+  }, [slug, serviceId]);
 
   // 2) Buscar slots quando data ou serviço mudarem
   useEffect(() => {
@@ -221,7 +222,7 @@ export default function PublicBooking() {
       <header className="border-b bg-card sticky top-0 z-10">
         <div className="container mx-auto px-4 h-14 flex items-center gap-3">
           <button 
-            onClick={() => navigate("/")} 
+            onClick={() => navigate(`/agendar/${slug}`)} 
             className="p-1.5 hover:bg-muted rounded-lg transition"
           >
             <ChevronLeft className="h-5 w-5" />
